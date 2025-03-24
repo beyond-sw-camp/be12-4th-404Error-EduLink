@@ -10,11 +10,11 @@ public class TestController {
 
     @GetMapping("/ex")
     public String test() {
-        return "blue";
+        return "kms main test";
     }
 
     @GetMapping("/ex2")
     public String test2() {
-        return "test example 2";
+        return "kms dev test";
     }
 }
