@@ -4,6 +4,7 @@ metadata:
   namespace: kms
   name: backend-cm
 data:
+  AWS_REGION: 'ap-northeast-2'
   MASTER_DB_URL: 'jdbc:mariadb://db-svc:3306/edulink'
   SLAVE_DB_URL: 'jdbc:mariadb://db-svc:3306/edulink'
   DB_USER: 'root'
