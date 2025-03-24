@@ -16,13 +16,11 @@ pipeline {
         }
         stage('Gradle Build') {
             steps {
-                dir('/var/lib/jenkins/workspace/edulink-frontend/frontend') {
-                    echo "Install packages"
-                    sh 'npm install i'
+                echo "Install packages"
+                sh 'cd /var/lib/jenkins/workspace/edulink-frontend/frontend && npm install i'
 
-                    echo "Build"
-                    sh 'npm run build'
-                }
+                echo "Build"
+                sh 'cd /var/lib/jenkins/workspace/edulink-frontend/frontend && npm run build'
             }
         }
         stage('Build Docker Image') {
