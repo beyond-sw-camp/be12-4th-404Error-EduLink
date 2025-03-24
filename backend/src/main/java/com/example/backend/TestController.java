@@ -15,6 +15,6 @@ public class TestController {
 
     @GetMapping("/ex2")
     public String test2() {
-        return "test example 2";
+        return "kms dev test";
     }
 }
