@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: kms
+  name: backend-deployment-edulink
+spec:
+  selector:
+    matchLabels:
+      type: backend
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+  minReadySeconds: 10
+  template:
+    metadata:
+      labels:
+        type: backend
+    spec:
+      containers:
+        - name: backend
+          image: mstar228/edulink-backend:latest
+          envFrom:
+            - configMapRef:
+                name: backend-cm
+          ports:
+            - containerPort: 8080
