@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: backend-blue
-          image: goodleaf96/edulink404backend:latest
+          image: mstar228/edulink-backend:latest
           env:
             - name: AWS_REGION
               valueFrom:

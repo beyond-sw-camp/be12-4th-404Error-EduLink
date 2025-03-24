@@ -3,39 +3,44 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'mstar228/edulink-backend'
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        IMAGE_TAG = "1.0.${BUILD_NUMBER}"
+        KUBE_HOST = 'test@192.0.2.7'
+        PATH = "/usr/local/bin:${env.PATH}"
     }
 
     stages {
         stage('Git Clone') {
             steps {
                 echo "Cloning Repository"
-                git url: 'https://github.com/museongkim0/jenkins_test.git',
+                git url: 'https://github.com/beyond-sw-camp/be12-4th-404Error-EduLink.git',
                     branch: "${env.GIT_BRANCH.replace('origin/', '')}"
             }
         }
         stage('Gradle Build') {
             steps {
-                echo "Add Permission"
-                sh 'chmod +x /var/lib/jenkins/workspace/edulink-backend/backend/gradlew'
-
-                echo "Delete build"
-                sh 'rm -rf /var/lib/jenkins/workspace/edulink-backend/backend/build'
-
-                echo "Move to backend and Build"
-                sh 'cd /var/lib/jenkins/workspace/edulink-backend/backend && ./gradlew bootJar'
+                echo "Building Project"
+                sh '''
+                    echo "Add Permission"
+                    chmod +x ${WORKSPACE}/backend/gradlew
+                    echo "Cleaning previous build"
+                    rm -rf ${WORKSPACE}/backend/build
+                    echo "Running Gradle build"
+                    cd ${WORKSPACE}/backend && ./gradlew bootJar
+                '''
             }
         }
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${IMAGE_NAME}:${IMAGE_TAG}", "/var/lib/jenkins/workspace/edulink-backend/backend")
+                    echo "Building Docker Image ${IMAGE_NAME}:${IMAGE_TAG}"
+                    docker.build("${IMAGE_NAME}:${IMAGE_TAG}", "${WORKSPACE}/backend")
                 }
             }
         }
         stage('Push to Registry') {
             steps {
                 script {
+                    echo "Pushing Docker Image ${IMAGE_NAME}:${IMAGE_TAG} to Registry"
                     withDockerRegistry([credentialsId: 'DOCKER_HUB']) {
                         docker.image("${IMAGE_NAME}:${IMAGE_TAG}").push()
                     }
@@ -48,60 +53,49 @@ pipeline {
             }
             steps {
                 script {
-                    def deployColor = (env.BUILD_NUMBER.toInteger() % 2 == 0) ? 'green' : 'blue'
+                    // 원격 클러스터의 서비스 'backend-svc'의 selector 값(예: 'green' 또는 'blue')을 조회합니다.
+                    def currentColor = sh(
+                        script: "ssh ${KUBE_HOST} 'kubectl get svc backend-svc -n goodleaf -o jsonpath=\"{.spec.selector.deployment}\"'",
+                        returnStdout: true
+                    ).trim()
+                    echo "Current deployment color: ${currentColor}"
+                    def deployColor = (currentColor == 'green') ? 'blue' : 'green'
                     def otherColor = (deployColor == 'green') ? 'blue' : 'green'
+                    echo "Deploying ${deployColor} version (scaling down ${otherColor})"
+                    // 환경 변수로 설정하여 이후 단계에서 사용합니다.
+                    env.DEPLOY_COLOR = deployColor
+                    env.OTHER_COLOR = otherColor
+                }
+            }
+        }
+        stage('Deploy Blue-Green') {
+            steps {
+                script {
+                    // 로컬의 YAML 파일 내 'latest' 태그를 현재 IMAGE_TAG로 치환
+                    sh """
+                        sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml
+                    """
 
-                    sshPublisher(
-                        publishers: [
-                            sshPublisherDesc(
-                                configName: 'k8s',
-                                verbose: true,
-                                transfers: [
-                                    sshTransfer(
-                                        sourceFiles: 'backend/k8s/backend-cm.yml',
-                                        remoteDirectory: '/',
-                                        execCommand: '''
-                                            sed -i "s/latest/$BUILD_ID/g" backend/k8s/backend-cm.yml
-                                        '''
-                                    ),
-                                    sshTransfer(
-                                        sourceFiles: 'backend/k8s/backend-svc.yml',
-                                        remoteDirectory: '/',
-                                        execCommand: '''
-                                            sed -i "s/latest/$BUILD_ID/g" backend/k8s/backend-svc.yml
-                                        '''
-                                    ),
-                                    sshTransfer(
-                                        sourceFiles: "backend/k8s/backend-deployment-${deployColor}.yml",
-                                        remoteDirectory: '/',
-                                        execCommand: '''
-                                            sed -i "s/latest/1.0.$BUILD_ID/g" backend/k8s/backend-deployment-${deployColor}.yml
-                                        '''
-                                    ),
-                                    sshTransfer(
-                                        execCommand: '''
-                                            kubectl apply -f /home/test/backend/k8s/backend-cm.yml
-                                        '''
-                                    ),
-                                    sshTransfer(
-                                        execCommand: '''
-                                            kubectl apply -f /home/test/backend/k8s/backend-svc.yml
-                                        '''
-                                    ),
-                                    sshTransfer(
-                                        execCommand: """
-                                            kubectl apply -f /home/test/backend/k8s/backend-deployment-${deployColor}.yml
-                                        """
-                                    ),
-                                    sshTransfer(
-                                        execCommand: """
-                                            kubectl scale deployment backend-deployment-${otherColor} --replicas=0 -n
-                                        """
-                                    )
-                                ]
-                            )
-                        ]
-                    )
+                    // 디버그: 로컬 k8s 디렉터리 파일 목록 출력
+                    sh "ls -la ${WORKSPACE}/backend/k8s"
+
+                    // 수정한 YAML 파일을 원격 호스트로 전송
+                    sh """
+                        scp ${WORKSPACE}/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml ${KUBE_HOST}:/home/test/backend/k8s/
+                    """
+
+                    // 원격 호스트에서 ConfigMap, Service, 그리고 Deployment 적용
+                    sh """
+                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-cm.yml'
+                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-svc.yml'
+                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml'
+                    """
+
+                    // 선택된 Deployment의 롤아웃 상태 대기
+                    sh "ssh ${KUBE_HOST} 'kubectl rollout status deployment/backend-deployment-${env.DEPLOY_COLOR} -n goodleaf'"
+
+                    // 반대 색상 Deployment 스케일 다운
+                    sh "ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.OTHER_COLOR} --replicas=0 -n goodleaf'"
                 }
             }
         }
