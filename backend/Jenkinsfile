@@ -58,21 +58,21 @@ pipeline {
                                         sourceFiles: 'backend/k8s/backend-cm.yml',
                                         remoteDirectory: '/',
                                         execCommand: '''
-                                            sed -i "s/latest/$BUILD_ID/g" backend/k8s/backend-cm.yml
+                                            sed -i "s/latest/1.0.$BUILD_ID/g" backend/k8s/backend-cm.yml
                                         '''
                                     ),
                                     sshTransfer(
                                         sourceFiles: 'backend/k8s/backend-svc.yml',
                                         remoteDirectory: '/',
                                         execCommand: '''
-                                            sed -i "s/latest/$BUILD_ID/g" backend/k8s/backend-svc.yml
+                                            sed -i "s/latest/1.0.$BUILD_ID/g" backend/k8s/backend-svc.yml
                                         '''
                                     ),
                                     sshTransfer(
                                         sourceFiles: 'backend/k8s/backend-deployment.yml',
                                         remoteDirectory: '/',
                                         execCommand: '''
-                                            sed -i "s/latest/$BUILD_ID/g" backend/k8s/backend-deployment.yml
+                                            sed -i "s/latest/1.0.$BUILD_ID/g" backend/k8s/backend-deployment.yml
                                         '''
                                     ),
                                     sshTransfer(
