@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment-green
+  namespace: goodleaf
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      type: backend
+      deployment: green
+  strategy:
+    type: RollingUpdate
+  minReadySeconds: 10
+  template:
+    metadata:
+      labels:
+        type: backend
+        deployment: green
+    spec:
+      containers:
+        - name: backend-green
+          image: mstar228/edulink-backend:latest
+          env:
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: aws-config
+                  key: AWS_REGION
+            - name: MASTER_DB_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: db-config
+                  key: MASTER_DB_URL
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: db-config
+                  key: SPRING_DATASOURCE_URL
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: db-config
+                  key: SPRING_DATASOURCE_USERNAME
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: db-config
+                  key: SPRING_DATASOURCE_PASSWORD
+          ports:
+            - containerPort: 8080
+      terminationGracePeriodSeconds: 0
