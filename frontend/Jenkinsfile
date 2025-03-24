@@ -1,0 +1,98 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = 'mstar228/edulink-frontend'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Git Clone') {
+            steps {
+                echo "Cloning Repository"
+                git url: 'https://github.com/beyond-sw-camp/be12-4th-404Error-EduLink.git',
+                    branch: "${env.GIT_BRANCH.replace('origin/', '')}"
+            }
+        }
+        stage('Gradle Build') {
+            steps {
+                echo "Install packages"
+                sh 'cd /var/lib/jenkins/workspace/edulink-frontend/frontend && npm install i'
+
+                echo "Build"
+                sh 'cd /var/lib/jenkins/workspace/edulink-frontend/frontend && npm run build'
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build("${IMAGE_NAME}:1.0.${IMAGE_TAG}", "/var/lib/jenkins/workspace/edulink-frontend/frontend")
+                }
+            }
+        }
+        stage('Push to Registry') {
+            steps {
+                script {
+                    withDockerRegistry([credentialsId: 'DOCKER_HUB']) {
+                        docker.image("${IMAGE_NAME}:1.0.${IMAGE_TAG}").push()
+                    }
+                }
+            }
+        }
+        stage('SSH') {
+            when {
+                expression { env.GIT_BRANCH == 'origin/kms/frontend/main' }
+            }
+            steps {
+                script {
+                    sshPublisher(
+                        publishers: [
+                            sshPublisherDesc(
+                                configName: 'k8s',
+                                verbose: true,
+                                transfers: [
+                                    sshTransfer(
+                                        sourceFiles: 'frontend/k8s/frontend-conf.yml',
+                                        remoteDirectory: '/',
+                                        execCommand: '''
+                                            sed -i "s/latest/1.0.$BUILD_ID/g" frontend/k8s/frontend-conf.yml
+                                        '''
+                                    ),
+                                    sshTransfer(
+                                        sourceFiles: 'frontend/k8s/frontend-svc.yml',
+                                        remoteDirectory: '/',
+                                        execCommand: '''
+                                            sed -i "s/latest/1.0.$BUILD_ID/g" frontend/k8s/frontend-svc.yml
+                                        '''
+                                    ),
+                                    sshTransfer(
+                                        sourceFiles: 'frontend/k8s/frontend-deployment.yml',
+                                        remoteDirectory: '/',
+                                        execCommand: '''
+                                            sed -i "s/latest/1.0.$BUILD_ID/g" frontend/k8s/frontend-deployment.yml
+                                        '''
+                                    ),
+                                    sshTransfer(
+                                        execCommand: '''
+                                            kubectl apply -f /home/test/frontend/k8s/frontend-conf.yml
+                                        '''
+                                    ),
+                                    sshTransfer(
+                                        execCommand: '''
+                                            kubectl apply -f /home/test/frontend/k8s/frontend-svc.yml
+                                        '''
+                                    ),
+                                    sshTransfer(
+                                        execCommand: '''
+                                            kubectl apply -f /home/test/frontend/k8s/frontend-deployment.yml
+                                        '''
+                                    )
+                                ]
+                            )
+                        ]
+                    )
+                }
+            }
+        }
+    }
+}
