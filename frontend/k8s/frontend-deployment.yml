@@ -20,7 +20,7 @@ spec:
       - name: frontend
         image: mstar228/edulink-frontend:latest
         ports:
-          - containerPort: 8080
+          - containerPort: 80
         volumeMounts:
           - name: config
             mountPath: /etc/nginx/conf.d/
