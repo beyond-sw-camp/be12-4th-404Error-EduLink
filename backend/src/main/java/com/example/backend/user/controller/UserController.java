@@ -65,4 +65,9 @@ public class UserController {
         return baseResponseService.getSuccessResponse(updatedInfo, CommonResponseStatus.SUCCESS);
     }
 
+    @GetMapping("/gettest")
+    public String getTest() {
+
+        return "test1";
+    }
 }
