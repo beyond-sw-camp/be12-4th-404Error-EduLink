@@ -10,7 +10,7 @@ public class TestController {
 
     @GetMapping("/ex")
     public String test() {
-        return "kms main test";
+        return "Version1";
     }
 
     @GetMapping("/ex2")
