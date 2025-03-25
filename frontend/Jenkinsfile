@@ -45,6 +45,9 @@ pipeline {
             }
         }
         stage('Determine Deploy Color') {
+            when {
+                expression { env.GIT_BRANCH == 'origin/kms/main' }
+            }
             steps {
                 script {
                     // 각각의 배포의 레플리카 수를 조회
@@ -101,6 +104,9 @@ pipeline {
             }
         }
         stage('Deploy Blue-Green') {
+            when {
+                expression { env.GIT_BRANCH == 'origin/kms/main' }
+            }
             steps {
                 script {
                     // 로컬 deployment YAML 파일 내 'latest' 태그를 현재 이미지 태그로 변경
