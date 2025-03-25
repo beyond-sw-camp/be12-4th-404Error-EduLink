@@ -50,7 +50,7 @@ pipeline {
         stage('Determine Deploy Color') {
             steps {
                 script {
-                    // blue와 green 배포의 ready replica 수를 각각 조회합니다.
+                    // 각 배포(blue, green)의 ready replica 수를 조회해 현재 활성화된 배포 색상을 판단합니다.
                     def blueReady = sh(
                         script: "ssh ${KUBE_HOST} 'kubectl get deployment backend-deployment-blue -o jsonpath=\"{.status.readyReplicas}\"' || echo '0'",
                         returnStdout: true
@@ -67,10 +67,10 @@ pipeline {
                     def currentDeployColor = (blueReady && blueReady != '0') ? 'blue' : (greenReady && greenReady != '0') ? 'green' : 'blue'
                     echo "Current deployment color: ${currentDeployColor}"
 
-                    // 현재 활성화된 색상의 반대색을 새로 배포할 색상으로 정합니다.
+                    // 새로 배포할 색상은 현재 활성화된 색상의 반대가 됩니다.
                     def deployColor = (currentDeployColor == 'blue') ? 'green' : 'blue'
                     def otherColor = (deployColor == 'blue') ? 'green' : 'blue'
-                    echo "Deploying ${deployColor} version (scaling down ${otherColor})"
+                    echo "Deploying ${deployColor} version (scaling down ${otherColor} later)"
 
                     env.DEPLOY_COLOR = deployColor
                     env.OTHER_COLOR = otherColor
@@ -87,23 +87,7 @@ pipeline {
                         error "Deployment color not determined!"
                     }
 
-                    def otherDeploymentExists = sh(
-                        script: "ssh ${KUBE_HOST} 'kubectl get deployment backend-deployment-${env.OTHER_COLOR} -o jsonpath=\"{.status.readyReplicas}\"'",
-                        returnStdout: true
-                    ).trim()
-
-                    // 서비스 YAML 파일의 selector 값을 현재 배포할 색상으로 변경합니다.
-                    sh """
-                        sed -i "s/deployment: .*/deployment: ${DEPLOY_COLOR}/g" ${WORKSPACE}/backend/k8s/backend-svc.yml
-                    """
-
-                    // ConfigMap과 서비스를 업데이트합니다.
-                    sh """
-                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-cm.yml'
-                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-svc.yml'
-                    """
-
-                    // 선택한 배포 파일의 이미지 태그를 업데이트 후 전송합니다.
+                    // 1. 업데이트할 배포 파일의 이미지 태그 변경 및 전송
                     sh """
                         sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml
                     """
@@ -111,20 +95,28 @@ pipeline {
                         scp ${WORKSPACE}/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml ${KUBE_HOST}:/home/test/backend/k8s/
                     """
 
-                    // 배포 또는 스케일 조정을 실행합니다.
+                    // 2. 새 배포(DEPLOY_COLOR)를 적용하고 스케일 업 (기존 파드 유지)
                     sh """
-                        if [ "${otherDeploymentExists}" = "" ]; then
-                            ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml'
-                            ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.DEPLOY_COLOR} --replicas=2'
-                        else
-                            ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.OTHER_COLOR} --replicas=0'
-                            ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml'
-                            ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.DEPLOY_COLOR} --replicas=2'
-                        fi
+                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml'
+                        ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.DEPLOY_COLOR} --replicas=2'
                     """
 
+                    // 3. 새 배포의 롤아웃 상태를 체크하여 완전 준비될 때까지 대기
                     sh """
-                        ssh ${KUBE_HOST} 'kubectl rollout status deployment/backend-deployment-${env.DEPLOY_COLOR} --timeout=5m || kubectl get pods'
+                        ssh ${KUBE_HOST} 'kubectl rollout status deployment/backend-deployment-${env.DEPLOY_COLOR} --timeout=5m'
+                    """
+
+                    // 4. 새 배포가 완전히 준비되면 서비스의 selector를 업데이트하여 트래픽을 새 배포로 전환
+                    sh """
+                        sed -i "s/deployment: .*/deployment: ${DEPLOY_COLOR}/g" ${WORKSPACE}/backend/k8s/backend-svc.yml
+                    """
+                    sh """
+                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-svc.yml'
+                    """
+
+                    // 5. 이후 기존 배포(OTHER_COLOR)의 파드를 스케일 다운하여 트래픽이 완전히 새 배포로 이전되도록 합니다.
+                    sh """
+                        ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.OTHER_COLOR} --replicas=0'
                     """
                 }
             }
