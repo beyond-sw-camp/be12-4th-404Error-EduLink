@@ -191,7 +191,7 @@ pipeline {
                 script {
                     echo "Updating service selector to deployment: ${deployColor}"
                     sh """
-                        echo '{"spec":{"selector":{"deployment":"${deployColor}","type":"frontend"}}' > /tmp/patch.json
+                        echo '{"spec":{"selector":{"deployment":"${deployColor}","type":"frontend"}}}' > /tmp/patch.json
                         scp /tmp/patch.json ${KUBE_HOST}:/tmp/patch.json
                         ssh ${KUBE_HOST} "kubectl patch svc frontend-svc -p '\$(cat /tmp/patch.json)'"
                         ssh ${KUBE_HOST} 'rm /tmp/patch.json'
