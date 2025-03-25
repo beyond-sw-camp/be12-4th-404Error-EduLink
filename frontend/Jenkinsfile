@@ -12,7 +12,7 @@ pipeline {
         stage('Git Clone') {
             steps {
                 echo "Cloning Repository"
-                git url: 'https://github.com/GoodleaF/be12-4th-404Error-EduLink.git',
+                git url: 'https://github.com/beyond-sw-camp/be12-4th-404Error-EduLink.git',
                     branch: "${env.GIT_BRANCH.replace('origin/', '')}"
             }
         }

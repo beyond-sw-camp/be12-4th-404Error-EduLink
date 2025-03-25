@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend-deployment-green
-  namespace: goodleaf
 spec:
   replicas: 2
   selector:
@@ -25,28 +24,28 @@ spec:
             - name: AWS_REGION
               valueFrom:
                 configMapKeyRef:
-                  name: aws-config
+                  name: backend-cm
                   key: AWS_REGION
             - name: MASTER_DB_URL
               valueFrom:
                 configMapKeyRef:
-                  name: db-config
+                  name: backend-cm
                   key: MASTER_DB_URL
             - name: SPRING_DATASOURCE_URL
               valueFrom:
                 configMapKeyRef:
-                  name: db-config
-                  key: SPRING_DATASOURCE_URL
+                  name: backend-cm
+                  key: SLAVE_DB_URL
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
                 configMapKeyRef:
-                  name: db-config
-                  key: SPRING_DATASOURCE_USERNAME
+                  name: backend-cm
+                  key: DB_USER
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 configMapKeyRef:
-                  name: db-config
-                  key: SPRING_DATASOURCE_PASSWORD
+                  name: backend-cm
+                  key: DB_PASSWORD
           ports:
             - containerPort: 8080
       terminationGracePeriodSeconds: 0

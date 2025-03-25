@@ -42,61 +42,124 @@ pipeline {
                 script {
                     echo "Pushing Docker Image ${IMAGE_NAME}:${IMAGE_TAG} to Registry"
                     withDockerRegistry([credentialsId: 'DOCKER_HUB']) {
-                        docker.image("${IMAGE_NAME}:1.0.${IMAGE_TAG}").push()
+                        docker.image("${IMAGE_NAME}:${IMAGE_TAG}").push()
                     }
                 }
             }
         }
-        stage('SSH') {
+        stage('Determine Deploy Color') {
+            steps {
+                script {
+                    // 기본 네임스페이스에서 svc를 조회
+                    def svcSelector = sh(
+                        script: "ssh ${KUBE_HOST} 'kubectl get svc backend-svc -o jsonpath=\"{.spec.selector.deployment}\"' || echo ''",
+                        returnStdout: true
+                    ).trim()
+                    if (!svcSelector) {
+                        echo "Service 'backend-svc' not found. Installing backend config..."
+                        // 기본 YAML 파일들을 적용하여 서비스를 생성합니다.
+                        sshPublisher(
+                            publishers: [
+                                sshPublisherDesc(
+                                    configName: 'k8s',
+                                    verbose: true,
+                                    transfers: [
+                                        sshTransfer(
+                                            sourceFiles: 'backend/k8s/backend-cm.yml',
+                                            remoteDirectory: '/',
+                                            execCommand: "sed -i \"s/latest/${IMAGE_TAG}/g\" backend/k8s/backend-cm.yml"
+                                        ),
+                                        sshTransfer(
+                                            sourceFiles: 'backend/k8s/backend-svc.yml',
+                                            remoteDirectory: '/',
+                                            execCommand: "sed -i \"s/latest/${IMAGE_TAG}/g\" backend/k8s/backend-svc.yml"
+                                        ),
+                                        sshTransfer(
+                                            sourceFiles: 'backend/k8s/backend-deployment-blue.yml',
+                                            remoteDirectory: '/',
+                                            execCommand: "sed -i \"s/latest/${IMAGE_TAG}/g\" backend/k8s/backend-deployment-blue.yml"
+                                        ),
+                                        sshTransfer(
+                                            execCommand: "kubectl apply -f /home/test/backend/k8s/backend-cm.yml"
+                                        ),
+                                        sshTransfer(
+                                            execCommand: "kubectl apply -f /home/test/backend/k8s/backend-svc.yml"
+                                        ),
+                                        sshTransfer(
+                                            execCommand: "kubectl apply -f /home/test/backend/k8s/backend-deployment-blue.yml"
+                                        )
+                                    ]
+                                )
+                            ]
+                        )
+                        sleep time: 10, unit: 'SECONDS'
+                        svcSelector = sh(
+                            script: "ssh ${KUBE_HOST} 'kubectl get svc backend-svc -o jsonpath=\"{.spec.selector.deployment}\"' || echo ''",
+                            returnStdout: true
+                        ).trim()
+                        if (!svcSelector) {
+                            echo "Service still not found. Defaulting current deployment color to 'blue'."
+                            svcSelector = 'blue'
+                        }
+                    }
+                    echo "Current deployment color: ${svcSelector}"
+                    def deployColor = (svcSelector == 'blue') ? 'green' : 'blue'
+                    def otherColor = (deployColor == 'blue') ? 'green' : 'blue'
+                    echo "Deploying ${deployColor} version (scaling down ${otherColor})"
+                    // 저장: 전역 변수 사용 (def 키워드로 지역 변수 선언 후 환경 변수에 저장)
+                    def currentDeployColor = deployColor
+                    def currentOtherColor = otherColor
+                    echo "Set currentDeployColor=${currentDeployColor}, currentOtherColor=${currentOtherColor}"
+                    env.DEPLOY_COLOR = currentDeployColor
+                    env.OTHER_COLOR = currentOtherColor
+                }
+            }
+        }
+        stage('Deploy Blue-Green') {
             when {
                 expression { env.GIT_BRANCH == 'origin/kms/main' }
             }
             steps {
                 script {
-                    // 원격 클러스터의 서비스 'backend-svc'의 selector 값(예: 'green' 또는 'blue')을 조회합니다.
-                    def currentColor = sh(
-                        script: "ssh ${KUBE_HOST} 'kubectl get svc backend-svc -n goodleaf -o jsonpath=\"{.spec.selector.deployment}\"'",
+                    if (!env.DEPLOY_COLOR) {
+                        error "Deployment color not determined!"
+                    }
+
+                    def otherDeploymentExists = sh(
+                        script: "ssh ${KUBE_HOST} 'kubectl get deployment backend-deployment-${env.OTHER_COLOR} -o jsonpath=\"{.status.readyReplicas}\"'",
                         returnStdout: true
                     ).trim()
-                    echo "Current deployment color: ${currentColor}"
-                    def deployColor = (currentColor == 'green') ? 'blue' : 'green'
-                    def otherColor = (deployColor == 'green') ? 'blue' : 'green'
-                    echo "Deploying ${deployColor} version (scaling down ${otherColor})"
-                    // 환경 변수로 설정하여 이후 단계에서 사용합니다.
-                    env.DEPLOY_COLOR = deployColor
-                    env.OTHER_COLOR = otherColor
-                }
-            }
-        }
-        stage('Deploy Blue-Green') {
-            steps {
-                script {
-                    // 로컬의 YAML 파일 내 'latest' 태그를 현재 IMAGE_TAG로 치환
+
+                    sh """
+                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-cm.yml'
+                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-svc.yml'
+                    """
+
                     sh """
                         sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml
                     """
 
-                    // 디버그: 로컬 k8s 디렉터리 파일 목록 출력
-                    sh "ls -la ${WORKSPACE}/backend/k8s"
-
-                    // 수정한 YAML 파일을 원격 호스트로 전송
                     sh """
                         scp ${WORKSPACE}/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml ${KUBE_HOST}:/home/test/backend/k8s/
                     """
 
-                    // 원격 호스트에서 ConfigMap, Service, 그리고 Deployment 적용
                     sh """
-                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-cm.yml'
-                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-svc.yml'
-                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml'
+                        if [ "${otherDeploymentExists}" = "" ]; then
+                            # 다른 배포가 없으면 새 배포를 2개 replicas로 생성
+                            ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml'
+                            ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.DEPLOY_COLOR} --replicas=2'
+                        else
+                             # 다른 배포가 있으면 스케일 다운
+                            ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.OTHER_COLOR} --replicas=0'
+
+                            ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml'
+                            ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.DEPLOY_COLOR} --replicas=2'
+                        fi
                     """
 
-                    // 선택된 Deployment의 롤아웃 상태 대기
-                    sh "ssh ${KUBE_HOST} 'kubectl rollout status deployment/backend-deployment-${env.DEPLOY_COLOR} -n goodleaf'"
-
-                    // 반대 색상 Deployment 스케일 다운
-                    sh "ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.OTHER_COLOR} --replicas=0 -n goodleaf'"
-
+                    sh """
+                        ssh ${KUBE_HOST} 'kubectl rollout status deployment/backend-deployment-${env.DEPLOY_COLOR} --timeout=5m || kubectl get pods'
+                    """
                 }
             }
         }
