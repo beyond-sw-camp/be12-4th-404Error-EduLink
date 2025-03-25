@@ -52,7 +52,7 @@ const login = (role) => {
 <template>
     <div class="bg-gray-50 dark:bg-slate-800 dark:text-slate-100">
         <div
-            class="flex min-h-screen items-center justify-center bg-gradient-to-tr from-purple-400 via-pink-500 to-red-500">
+            class="flex min-h-screen items-center justify-center bg-gradient-to-tr">
             <form @submit="handleSubmit"
                 class="rounded-2xl flex-col dark:bg-slate-900/70 bg-white flex w-11/12 md:w-7/12 lg:w-6/12 xl:w-4/12 shadow-2xl">
                 <div class="flex-1 p-6">
