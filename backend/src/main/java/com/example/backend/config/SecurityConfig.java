@@ -71,7 +71,7 @@ public class SecurityConfig {
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/user/signup/{role}", "/logout").permitAll()  // 로그인, 회원가입 허용
+                        .requestMatchers("/login", "/user/signup/{role}", "/logout", "/test/ex").permitAll()  // 로그인, 회원가입 허용
                         .requestMatchers("/v3/**", "/v3/api-docs/**", "/swagger-ui/**",
                                 "/swagger-ui.html", "/swagger-resources/**", "/favicon.ico").permitAll()
                         .requestMatchers("/board/**").hasAnyRole("STUDENT", "INSTRUCTOR", "MANAGER") // 게시판은 로그인한 회원이라면 모두 허용

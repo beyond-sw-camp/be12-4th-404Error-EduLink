@@ -136,5 +136,44 @@
 ## <img src="https://simpleicons.org/icons/ansible.svg" width="24" height="24" style="vertical-align: middle;"/> 앤서블 사용 이유
 <a href="https://github.com/beyond-sw-camp/be12-4th-404Error-EduLink/wiki/4.-%EC%95%A4%EC%84%9C%EB%B8%94-%EC%82%AC%EC%9A%A9-%EC%9D%B4%EC%9C%A0">앤서블 사용 이유</a>
 
-## 6. CI/CD 배포 및 테스트
+
+## CI/CD 시나리오
+
+<br>
+1. github의 frontend/dev, backend/dev에 최신 버전 프로젝트를 머지합니다.
+
+- 최신 버전 코드를 머지하면 이벤트 발생
+
+<br>
+2. github은 webhook을 통해 젠킨스에게 이벤트를 전달합니다.
+
+<br>
+3. 젠킨스 마스터가 젠킨스 파일의 지정된 역할(front/backend)에 따라 지정된 젠킨스 에이전트에게 수행할 목록을 전달합니다.
+
+<br>
+4. 젠킨스 에이전트가 파이프라인에 저장된 절차를 실행합니다.
+
+- github에서 최신 코드 clone
+- 클론된 코드를 기반으로 빌드 작업 수행
+   - front: node, npm bulid
+   - back: gradle build
+- 빌드를 통해 도커 이미지 생성 및 도커 허브에 push
+
+<br>
+5. 빌드가 완료된 후 메인 브랜치인 경우, 쿠버네티스 마스터에 SSH 접속 하여 쉘스크립트를 실행합니다.
+
+- 현재 실행 중인 pod가 blue라면 green으로 디플로이먼트 생성
+   - 젠킨스에서 도커 허브에 푸쉬한 이미지로 컨테이너 실행
+- rollout명령어를 활용하여 생성한 디플로이먼트내의 프로그램이 정상 작동인지 확인
+- 정상 작동중이라면 서비스를 신버전 디플로이먼트의 파드들과 연결하도록 수정
+- 구버전 디플로이먼트의 스케일을 0으로 수정
+
+<br>
+6. webhook을 통해 Discode에게 파이프라인 결과를 전달합니다.
+
+- 젠킨스에 설치한 Discode 플러그인을 통해 파이프라인 제목, 결과, 실행 시간이 담긴 Post를 Discode에 전송
+- Discode봇이 데이터를 받아 지정한 Discode 서버에 실행 결과를 전송
+
+
+## 🔎 CI/CD 배포 및 테스트 결과
 
