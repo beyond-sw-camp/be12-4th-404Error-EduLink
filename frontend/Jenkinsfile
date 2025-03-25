@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'mstar228/edulink-frontend'
-        IMAGE_TAG = "1.0.${BUILD_NUMBER}"
+        IMAGE_TAG = "2.0.${BUILD_NUMBER}"
         KUBE_HOST = 'test@192.0.2.7'
         PATH = "/usr/local/bin:${env.PATH}"
     }
@@ -46,7 +46,7 @@ pipeline {
         }
         stage('Determine Deploy Color') {
             when {
-                expression { env.GIT_BRANCH == 'origin/kms/main' }
+                expression { env.GIT_BRANCH == 'origin/main' }
             }
             steps {
                 script {
