@@ -1,0 +1,30 @@
+- name: Install and Configure Elasticsearch on All Nodes
+  hosts: ansible_cluster
+  become: yes
+  roles:
+    - role: elastic.elasticsearch
+
+  vars:
+    es_heap_size: "1g"
+    es_data_dirs:
+      - "/opt/elasticsearch"
+    es_cluster_name: "test-cluster"
+    es_discovery_hosts:
+      - "192.168.28.118:9300"
+      - "192.168.28.119:9300"
+      - "192.168.28.114:9300"
+    es_initial_master_nodes:
+      - "192.168.28.118"
+    es_is_master: "{{ (inventory_hostname == 'master') | bool }}"
+    es_is_data: "{{ (inventory_hostname != 'master') | bool }}"
+
+    es_config:
+      cluster.name: "{{ es_cluster_name }}"
+      discovery.seed_hosts: "{{ es_discovery_hosts }}"
+      cluster.initial_master_nodes: "{{ es_initial_master_nodes }}"
+      node.master: "{{ es_is_master }}"
+      node.data: "{{ es_is_data }}"
+      network.host: "0.0.0.0"
+      http.port: 9200
+      transport.port: 9300
+      bootstrap.memory_lock: false

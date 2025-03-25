@@ -1,5 +1,29 @@
+// 전역 변수 선언
+// Jenkins에서는 pipeline 블록 바깥에 선언해야 전역으로 사용 가능
+def deployColor = ""
+def otherColor = ""
+def startTime = 0
+
+def sendDiscordMessage(String title, String description, String color) {
+    withCredentials([string(credentialsId: 'Discord-Webhook', variable: 'DISCORD')]) {
+        discordSend(
+            description: description,
+            footer: "Jenkins CI/CD",
+            link: env.BUILD_URL,
+            result: currentBuild.currentResult,
+            title: title,
+            color: color,
+            webhookURL: "$DISCORD"
+        )
+    }
+}
+
 pipeline {
     agent any
+
+    options {
+        timestamps()
+    }
 
     environment {
         IMAGE_NAME = 'mstar228/edulink-backend'
@@ -9,13 +33,30 @@ pipeline {
     }
 
     stages {
+        stage('Start Timer') {
+            steps {
+                script {
+                    startTime = System.currentTimeMillis()
+                }
+            }
+        }
+
         stage('Git Clone') {
             steps {
                 echo "Cloning Repository"
                 git url: 'https://github.com/beyond-sw-camp/be12-4th-404Error-EduLink.git',
                     branch: "${env.GIT_BRANCH.replace('origin/', '')}"
             }
+            post {
+                success {
+                    sendDiscordMessage("✅ Git Clone 성공!", "Git Repository 클론 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Git Clone 실패!", "Git Repository 클론 중 오류 발생", "RED")
+                }
+            }
         }
+
         stage('Gradle Build') {
             steps {
                 echo "Building Project"
@@ -28,7 +69,16 @@ pipeline {
                     cd ${WORKSPACE}/backend && ./gradlew bootJar
                 '''
             }
+            post {
+                success {
+                    sendDiscordMessage("✅ Gradle Build 성공!", "Spring Boot 빌드 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Gradle Build 실패!", "Spring Boot 빌드 중 오류 발생", "RED")
+                }
+            }
         }
+
         stage('Build Docker Image') {
             steps {
                 script {
@@ -36,7 +86,16 @@ pipeline {
                     docker.build("${IMAGE_NAME}:${IMAGE_TAG}", "${WORKSPACE}/backend")
                 }
             }
+            post {
+                success {
+                    sendDiscordMessage("✅ Docker Build 성공!", "Docker 이미지 빌드 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Docker Build 실패!", "Docker 이미지 빌드 중 오류 발생", "RED")
+                }
+            }
         }
+
         stage('Push to Registry') {
             steps {
                 script {
@@ -46,44 +105,48 @@ pipeline {
                     }
                 }
             }
-        }
-        stage('Determine Deploy Color') {
-            steps {
-                script {
-                    // 각 배포(blue, green)의 ready replica 수를 조회해 현재 활성화된 배포 색상을 판단합니다.
-                    def blueReady = sh(
-                        script: "ssh ${KUBE_HOST} 'kubectl get deployment backend-deployment-blue -o jsonpath=\"{.status.readyReplicas}\"' || echo '0'",
-                        returnStdout: true
-                    ).trim()
-                    def greenReady = sh(
-                        script: "ssh ${KUBE_HOST} 'kubectl get deployment backend-deployment-green -o jsonpath=\"{.status.readyReplicas}\"' || echo '0'",
-                        returnStdout: true
-                    ).trim()
-                    echo "Blue ready replicas: ${blueReady}"
-                    echo "Green ready replicas: ${greenReady}"
-
-                    // 현재 활성화된 배포 색상을 판단합니다.
-                    // 둘 다 0이면 기본값으로 blue를 가정합니다.
-                    def currentDeployColor = (blueReady && blueReady != '0') ? 'blue' : (greenReady && greenReady != '0') ? 'green' : 'blue'
-                    echo "Current deployment color: ${currentDeployColor}"
-
-                    // 새로 배포할 색상은 현재 활성화된 색상의 반대가 됩니다.
-                    def deployColor = (currentDeployColor == 'blue') ? 'green' : 'blue'
-                    def otherColor = (deployColor == 'blue') ? 'green' : 'blue'
-                    echo "Deploying ${deployColor} version (scaling down ${otherColor} later)"
-
-                    env.DEPLOY_COLOR = deployColor
-                    env.OTHER_COLOR = otherColor
+            post {
+                success {
+                    sendDiscordMessage("✅ Docker Push 성공!", "Docker 이미지 푸시 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Docker Push 실패!", "Docker 이미지 푸시 중 오류 발생", "RED")
                 }
             }
         }
+
+        stage('Determine Deploy Color') {
+            steps {
+                script {
+                    def blueReady = sh(script: "ssh ${KUBE_HOST} 'kubectl get deployment backend-deployment-blue -o jsonpath=\"{.status.readyReplicas}\"' || echo '0'", returnStdout: true).trim()
+                    def greenReady = sh(script: "ssh ${KUBE_HOST} 'kubectl get deployment backend-deployment-green -o jsonpath=\"{.status.readyReplicas}\"' || echo '0'", returnStdout: true).trim()
+                    echo "Blue ready replicas: ${blueReady}"
+                    echo "Green ready replicas: ${greenReady}"
+
+                    def currentDeployColor = (blueReady && blueReady != '0') ? 'blue' : (greenReady && greenReady != '0') ? 'green' : 'blue'
+                    deployColor = (currentDeployColor == 'blue') ? 'green' : 'blue'
+                    otherColor = (deployColor == 'blue') ? 'green' : 'blue'
+
+                    echo "Deploying ${deployColor} version (scaling down ${otherColor} later)"
+                }
+            }
+            post {
+                success {
+                    sendDiscordMessage("✅ 배포 색상 결정 완료!", "${deployColor} 버전으로 배포 진행", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ 배포 색상 결정 실패!", "색상 결정 중 오류 발생", "RED")
+                }
+            }
+        }
+
         stage('Deploy Blue-Green') {
             when {
                 expression { env.GIT_BRANCH == 'origin/kms/main' }
             }
             steps {
                 script {
-                    if (!env.DEPLOY_COLOR) {
+                    if (!deployColor) {
                         error "Deployment color not determined!"
                     }
 
@@ -112,14 +175,47 @@ pipeline {
                     """
                     sh """
                         scp ${WORKSPACE}/backend/k8s/backend-svc.yml ${KUBE_HOST}:/home/test/backend/k8s/
-                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-svc.yml'
-                    """
 
-                    // 5. 이후 기존 배포(OTHER_COLOR)의 파드를 스케일 다운하여 트래픽이 완전히 새 배포로 이전되도록 합니다.
-                    sh """
-                        ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.OTHER_COLOR} --replicas=0'
+                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-svc.yml'
+                        ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${otherColor} --replicas=0'
                     """
                 }
+            }
+            post {
+                success {
+                    sendDiscordMessage("✅ Blue-Green 배포 성공!", "${deployColor} 버전 배포 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Blue-Green 배포 실패!", "배포 중 오류 발생", "RED")
+                }
+            }
+        }
+
+        stage('End Timer') {
+            steps {
+                script {
+                    def endTime = System.currentTimeMillis()
+                    def duration = (endTime - startTime) / 1000
+                    echo "⏱️ 전체 파이프라인 실행 시간: ${duration}초"
+                }
+            }
+        }
+    }
+
+
+    post {
+        success {
+            script {
+                def endTime = System.currentTimeMillis()
+                def duration = (endTime - startTime) / 1000
+                sendDiscordMessage("🎉 전체 파이프라인 성공!", "⏱️ 실행 시간: ${duration}초", "GREEN")
+            }
+        }
+        failure {
+            script {
+                def endTime = System.currentTimeMillis()
+                def duration = (endTime - startTime) / 1000
+                sendDiscordMessage("🚨 전체 파이프라인 실패!", "⏱️ 실행 시간: ${duration}초", "RED")
             }
         }
     }

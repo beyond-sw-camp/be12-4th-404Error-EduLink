@@ -1,21 +1,62 @@
+// 전역 변수 선언
+// Jenkins에서는 pipeline 블록 바깥에 선언해야 전역으로 사용 가능
+def deployColor = ""
+def otherColor = ""
+def startTime = 0
+
+def sendDiscordMessage(String title, String description, String color) {
+    withCredentials([string(credentialsId: 'Discord-Webhook', variable: 'DISCORD')]) {
+        discordSend(
+            description: description,
+            footer: "Jenkins CI/CD",
+            link: env.BUILD_URL,
+            result: currentBuild.currentResult,
+            title: title,
+            color: color,
+            webhookURL: "$DISCORD"
+        )
+    }
+}
+
 pipeline {
     agent any
 
+    options {
+        timestamps()
+    }
+
     environment {
         IMAGE_NAME = 'mstar228/edulink-frontend'
-        IMAGE_TAG = "1.0.${BUILD_NUMBER}"
+        IMAGE_TAG = "2.0.${BUILD_NUMBER}"
         KUBE_HOST = 'test@192.0.2.7'
         PATH = "/usr/local/bin:${env.PATH}"
     }
 
     stages {
+        stage('Start Timer') {
+            steps {
+                script {
+                    startTime = System.currentTimeMillis()
+                }
+            }
+        }
+
         stage('Git Clone') {
             steps {
                 echo "Cloning Repository"
                 git url: 'https://github.com/beyond-sw-camp/be12-4th-404Error-EduLink.git',
                     branch: "${env.GIT_BRANCH.replace('origin/', '')}"
             }
+            post {
+                success {
+                    sendDiscordMessage("✅ Git Clone 성공!", "Git Repository 클론 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Git Clone 실패!", "Git Repository 클론 중 오류 발생", "RED")
+                }
+            }
         }
+
         stage('Build Frontend') {
             steps {
                 echo "Building Frontend"
@@ -25,7 +66,16 @@ pipeline {
                     npm run build
                 '''
             }
+            post {
+                success {
+                    sendDiscordMessage("✅ Frontend Build 성공!", "프론트엔드 빌드 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Frontend Build 실패!", "프론트엔드 빌드 중 오류 발생", "RED")
+                }
+            }
         }
+
         stage('Build Docker Image') {
             steps {
                 script {
@@ -33,7 +83,16 @@ pipeline {
                     docker.build("${IMAGE_NAME}:${IMAGE_TAG}", "${WORKSPACE}/frontend")
                 }
             }
+            post {
+                success {
+                    sendDiscordMessage("✅ Docker Build 성공!", "프론트엔드 이미지 빌드 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Docker Build 실패!", "프론트엔드 이미지 빌드 중 오류 발생", "RED")
+                }
+            }
         }
+
         stage('Push to Registry') {
             steps {
                 script {
@@ -43,14 +102,22 @@ pipeline {
                     }
                 }
             }
+            post {
+                success {
+                    sendDiscordMessage("✅ Docker Push 성공!", "이미지 레지스트리 업로드 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Docker Push 실패!", "레지스트리 업로드 중 오류 발생", "RED")
+                }
+            }
         }
+
         stage('Determine Deploy Color') {
             when {
-                expression { env.GIT_BRANCH == 'origin/kms/main' }
+                expression { env.GIT_BRANCH == 'origin/main' }
             }
             steps {
                 script {
-                    // 각각의 배포의 레플리카 수를 조회
                     def blueReplicas = sh(
                         script: "ssh ${KUBE_HOST} 'kubectl get deployment frontend-deployment-blue -o jsonpath=\"{.spec.replicas}\"' || echo '0'",
                         returnStdout: true
@@ -62,50 +129,39 @@ pipeline {
 
                     int blueCount = 0
                     int greenCount = 0
-                    try {
-                        blueCount = blueReplicas.toInteger()
-                    } catch (Exception e) {
-                        blueCount = 0
-                    }
-                    try {
-                        greenCount = greenReplicas.toInteger()
-                    } catch (Exception e) {
-                        greenCount = 0
-                    }
-
-                    echo "Blue deployment replicas: ${blueCount}"
-                    echo "Green deployment replicas: ${greenCount}"
-
-                    def deployColor = ''
-                    def otherColor = ''
+                    try { blueCount = blueReplicas.toInteger() } catch (Exception e) {}
+                    try { greenCount = greenReplicas.toInteger() } catch (Exception e) {}
 
                     if (blueCount > 0 && greenCount == 0) {
-                        // 현재 blue가 활성화되어 있으면 green 배포
                         deployColor = "green"
                         otherColor = "blue"
                     } else if (greenCount > 0 && blueCount == 0) {
-                        // 현재 green이 활성화되어 있으면 blue 배포
                         deployColor = "blue"
                         otherColor = "green"
                     } else if (blueCount > 0 && greenCount > 0) {
-                        // 두 배포 모두 활성화되어 있다면, 간단하게 blue의 반대인 green을 선택 (필요시 로직 조정)
                         deployColor = "green"
                         otherColor = "blue"
                     } else {
-                        // 활성 배포가 없을 경우 기본값: blue 배포
                         deployColor = "blue"
                         otherColor = "green"
                     }
 
                     echo "Deploying ${deployColor} version (scaling down ${otherColor})"
-                    env.DEPLOY_COLOR = deployColor
-                    env.OTHER_COLOR = otherColor
+                }
+            }
+            post {
+                success {
+                    sendDiscordMessage("✅ 배포 색상 결정 완료!", "${deployColor}로 배포 진행 예정", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ 배포 색상 결정 실패!", "replica 확인 중 오류 발생", "RED")
                 }
             }
         }
+
         stage('Deploy Blue-Green') {
             when {
-                expression { env.GIT_BRANCH == 'origin/kms/main' }
+                expression { env.GIT_BRANCH == 'origin/main' }
             }
             steps {
                 script {
@@ -121,14 +177,22 @@ pipeline {
                     """
                     // 원격 호스트에서 config, service, 그리고 선택된 deployment 적용
                     sh """
+                        sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/frontend/k8s/frontend-deployment-${deployColor}.yml
+                        scp ${WORKSPACE}/frontend/k8s/frontend-deployment-${deployColor}.yml ${KUBE_HOST}:/home/test/frontend/k8s/
                         ssh ${KUBE_HOST} 'kubectl apply -f /home/test/frontend/k8s/frontend-conf.yml'
                         ssh ${KUBE_HOST} 'kubectl apply -f /home/test/frontend/k8s/frontend-svc.yml'
-                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/frontend/k8s/frontend-deployment-${env.DEPLOY_COLOR}.yml'
+                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/frontend/k8s/frontend-deployment-${deployColor}.yml'
+                        ssh ${KUBE_HOST} 'kubectl rollout status deployment/frontend-deployment-${deployColor}'
+                        ssh ${KUBE_HOST} 'kubectl scale deployment frontend-deployment-${otherColor} --replicas=0' || true
                     """
-                    // 배포된 Deployment의 롤아웃 상태 대기
-                    sh "ssh ${KUBE_HOST} 'kubectl rollout status deployment/frontend-deployment-${env.DEPLOY_COLOR}'"
-                    // 반대 색상의 Deployment 스케일 다운 (오류 발생 시 무시)
-                    sh "ssh ${KUBE_HOST} 'kubectl scale deployment frontend-deployment-${env.OTHER_COLOR} --replicas=0' || true"
+                }
+            }
+            post {
+                success {
+                    sendDiscordMessage("✅ Blue-Green 배포 성공!", "${deployColor}로 트래픽 전환 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Blue-Green 배포 실패!", "배포 중 오류 발생", "RED")
                 }
             }
         }
@@ -152,6 +216,41 @@ pipeline {
                 script {
                     echo "Verifying deployment health..."
                 }
+            }
+            post {
+                success {
+                    sendDiscordMessage("✅ 배포 검증 성공!", "헬스체크 통과", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ 배포 검증 실패!", "헬스체크 실패", "RED")
+                }
+            }
+        }
+
+        stage('End Timer') {
+            steps {
+                script {
+                    def endTime = System.currentTimeMillis()
+                    def duration = (endTime - startTime) / 1000
+                    echo "⏱️ 전체 파이프라인 실행 시간: ${duration}초"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                def endTime = System.currentTimeMillis()
+                def duration = (endTime - startTime) / 1000
+                sendDiscordMessage("🎉 전체 파이프라인 성공!", "⏱️ 실행 시간: ${duration}초", "GREEN")
+            }
+        }
+        failure {
+            script {
+                def endTime = System.currentTimeMillis()
+                def duration = (endTime - startTime) / 1000
+                sendDiscordMessage("🚨 전체 파이프라인 실패!", "⏱️ 실행 시간: ${duration}초", "RED")
             }
         }
     }
