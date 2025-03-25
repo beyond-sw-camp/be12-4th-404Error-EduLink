@@ -115,8 +115,7 @@ pipeline {
                     """
                     // 로컬 파일 확인 (디버깅용)
                     sh "ls -la ${WORKSPACE}/frontend/k8s"
-
-                    // 수정한 YAML 파일을 원격 호스트로 전송
+                    // 수정된 YAML 파일을 원격 호스트로 전송
                     sh """
                         scp ${WORKSPACE}/frontend/k8s/frontend-deployment-${env.DEPLOY_COLOR}.yml ${KUBE_HOST}:/home/test/frontend/k8s/
                     """
@@ -133,13 +132,25 @@ pipeline {
                 }
             }
         }
-        // 추가 검증 단계: 배포 후 헬스체크 또는 smoke test
+        // 새로 배포된 색상에 맞춰 서비스 셀렉터를 업데이트하는 단계 추가
+        stage('Update Service Selector') {
+            steps {
+                script {
+                    echo "Updating service selector to deployment: ${env.DEPLOY_COLOR}"
+                    sh """
+                        echo '{"spec":{"selector":{"deployment":"${env.DEPLOY_COLOR}","type":"frontend"}}}' > /tmp/patch.json
+                        scp /tmp/patch.json ${KUBE_HOST}:/tmp/patch.json
+                        ssh ${KUBE_HOST} "kubectl patch svc frontend-svc -p '\$(cat /tmp/patch.json)'"
+                        ssh ${KUBE_HOST} 'rm /tmp/patch.json'
+                        rm /tmp/patch.json
+                    """
+                }
+            }
+        }
         stage('Verify Deployment') {
             steps {
                 script {
                     echo "Verifying deployment health..."
-                    // 예시: 헬스체크 엔드포인트 호출
-                    // sh "curl -f http://your-frontend-url/health"
                 }
             }
         }

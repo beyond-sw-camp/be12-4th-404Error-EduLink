@@ -108,9 +108,10 @@ pipeline {
 
                     // 4. 새 배포가 완전히 준비되면 서비스의 selector를 업데이트하여 트래픽을 새 배포로 전환
                     sh """
-                        sed -i "s/deployment: .*/deployment: ${DEPLOY_COLOR}/g" ${WORKSPACE}/backend/k8s/backend-svc.yml
+                        sed -i "s/app: backend-[^\\"]*/app: backend-${env.DEPLOY_COLOR}/g" ${WORKSPACE}/backend/k8s/backend-svc.yml
                     """
                     sh """
+                        scp ${WORKSPACE}/backend/k8s/backend-svc.yml ${KUBE_HOST}:/home/test/backend/k8s/
                         ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-svc.yml'
                     """
 
