@@ -149,13 +149,33 @@ pipeline {
                     if (!deployColor) {
                         error "Deployment color not determined!"
                     }
+
+                    // 1. 업데이트할 배포 파일의 이미지 태그 변경 및 전송
                     sh """
-                        sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/backend/k8s/backend-deployment-${deployColor}.yml
-                        scp ${WORKSPACE}/backend/k8s/backend-deployment-${deployColor}.yml ${KUBE_HOST}:/home/test/backend/k8s/
-                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-deployment-${deployColor}.yml'
-                        ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${deployColor} --replicas=2'
-                        ssh ${KUBE_HOST} 'kubectl rollout status deployment/backend-deployment-${deployColor} --timeout=5m'
-                        sed -i "s/deployment: .*/deployment: ${deployColor}/g" ${WORKSPACE}/backend/k8s/backend-svc.yml
+                        sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml
+                    """
+                    sh """
+                        scp ${WORKSPACE}/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml ${KUBE_HOST}:/home/test/backend/k8s/
+                    """
+
+                    // 2. 새 배포(DEPLOY_COLOR)를 적용하고 스케일 업 (기존 파드 유지)
+                    sh """
+                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml'
+                        ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.DEPLOY_COLOR} --replicas=2'
+                    """
+
+                    // 3. 새 배포의 롤아웃 상태를 체크하여 완전 준비될 때까지 대기
+                    sh """
+                        ssh ${KUBE_HOST} 'kubectl rollout status deployment/backend-deployment-${env.DEPLOY_COLOR} --timeout=5m'
+                    """
+
+                    // 4. 새 배포가 완전히 준비되면 서비스의 selector를 업데이트하여 트래픽을 새 배포로 전환
+                    sh """
+                        sed -i "s/app: backend-[^\\"]*/app: backend-${env.DEPLOY_COLOR}/g" ${WORKSPACE}/backend/k8s/backend-svc.yml
+                    """
+                    sh """
+                        scp ${WORKSPACE}/backend/k8s/backend-svc.yml ${KUBE_HOST}:/home/test/backend/k8s/
+
                         ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-svc.yml'
                         ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${otherColor} --replicas=0'
                     """
@@ -181,6 +201,7 @@ pipeline {
             }
         }
     }
+
 
     post {
         success {
