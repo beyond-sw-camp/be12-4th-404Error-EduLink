@@ -191,6 +191,3 @@
 
 ### 백엔드 젠킨스 - 디스코드 연동
 <img src="./images/readme_img/back_discord.gif" />
-
-### 젠킨스 - 디스코드 에러 시
-<img src="./images/readme_img/jenkins-discord-error.png" />
