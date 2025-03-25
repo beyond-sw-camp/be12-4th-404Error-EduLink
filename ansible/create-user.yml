@@ -1,0 +1,13 @@
+- name: Create MongoDB Admin User
+  hosts: master
+  become: yes
+  tasks:
+    - name: Create MongoDB Admin User if not exists
+      command: >
+        /usr/bin/mongosh --quiet --eval '
+        db = db.getSiblingDB("admin");
+        if (!db.getUser("admin")) {
+          db.createUser({user: "admin", pwd: "qwer1234", roles: [{ role: "root", db: "admin" }]});
+        } else {
+          print("User already exists");
+        }'
