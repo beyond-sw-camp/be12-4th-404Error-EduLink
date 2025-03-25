@@ -178,13 +178,11 @@
 <img src="./images/readme_img/backend_bluegreen.gif" />
 
 ### 프론트엔드 무중단 배포 (Blue/Green)
-<img src="./images/readme_img/backend_bluegreen.gif" />
+<img src="./images/test.gif" />
 
 ### 백엔드 무중단 배포 (Blue/Green)
 <img src="./images/readme_img/backend_bluegreen.gif" />
 
-### 디스코드 알림
-<img src="./images/readme_img/backend_bluegreen.gif" />
 
 ### 프론트 엔드 젠킨스 - 디스코드 연동
 <img src="./images/readme_img/front_discord.gif" />
