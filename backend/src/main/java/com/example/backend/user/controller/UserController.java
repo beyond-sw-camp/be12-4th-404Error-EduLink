@@ -66,8 +66,8 @@ public class UserController {
     }
 
     @GetMapping("/gettest")
-    public String getTest() {
-
-        return "test3";
+    public BaseResponse<String> getTest() {
+        return baseResponseService.getSuccessResponse("test3", CommonResponseStatus.SUCCESS);
     }
+
 }
