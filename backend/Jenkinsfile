@@ -161,7 +161,7 @@ pipeline {
 
         stage('Deploy Blue-Green') {
             when {
-                expression { env.GIT_BRANCH == 'origin/kms/main' }
+                expression { env.GIT_BRANCH == 'origin/main' }
             }
             steps {
                 script {
