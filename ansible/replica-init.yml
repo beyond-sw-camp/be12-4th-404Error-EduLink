@@ -1,0 +1,7 @@
+- name: Initialize MongoDB Replica Set
+  hosts: master
+  become: yes
+  tasks:
+    - name: Initiate Replica Set
+      command: >
+        mongosh --eval 'rs.initiate({_id: "rs0", members: [{ _id: 0, host: "192.168.28.118:27017" }, { _id: 1, host: "192.168.28.119:27017" }, { _id: 2, host: "192.168.28.114:27017" }]})'

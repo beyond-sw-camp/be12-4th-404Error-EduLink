@@ -36,16 +36,21 @@ spec:
                 configMapKeyRef:
                   name: backend-cm
                   key: SLAVE_DB_URL
-            - name: SPRING_DATASOURCE_USERNAME
+            - name: DB_USER
               valueFrom:
                 configMapKeyRef:
                   name: backend-cm
                   key: DB_USER
-            - name: SPRING_DATASOURCE_PASSWORD
+            - name: DB_PASSWORD
               valueFrom:
                 configMapKeyRef:
                   name: backend-cm
                   key: DB_PASSWORD
+            - name: SECRET_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-cm
+                  key: SECRET_KEY
           ports:
             - containerPort: 8080
       terminationGracePeriodSeconds: 0

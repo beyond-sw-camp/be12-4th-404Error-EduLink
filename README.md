@@ -1,25 +1,19 @@
-# be12-3rd-404Error-EduLink
+# be12-4th-404Error-EduLink
 
 
 
 ## 📌 프로젝트 주제 
+### EduLink: 혁신적인 학습 관리 플랫폼
 <div align="center">
     <img src="./images/readme_img/service.png" /> <br>
 </div>
 
-### EduLink: 혁신적인 학습 관리 플랫폼
-빠르게 증가하는 국비지원 부트캠프 수요에 맞춰 학습 환경의 질적 향상을 목표로 개발된 EduLink는 기존 LMS(HRD-Net)의 한계를 보완합니다.   
-
-이 플랫폼은 단순 출결 확인을 넘어 커리큘럼 관리, 공지사항 통합, 학습 성과 분석 등 다양한 기능을 통해 학습 효율을 극대화합니다.   
-
-수강생들은 EduLink를 통해 학습 전반을 체계적으로 관리하고 편리하게 활용할 수 있습니다.
-
-[상세보기](https://github.com/beyond-sw-camp/be12-3rd-404Error-EduLink/wiki/1.-%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8-%EA%B0%9C%EC%9A%94)
+[프로젝트 개요 보기](https://github.com/beyond-sw-camp/be12-4th-404Error-EduLink/wiki/1.-%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8-%EA%B0%9C%EC%9A%94)
 
 ### 프로젝트 목표
-- EduLink 서비스의 백엔드 서버를 구현하고, 이전에 개발한 프론트엔드 서버와 연결합니다.
-- 기본적인 기능 구현에서 나아가 여러 시나리오 기반으로 성능을 테스트하고 개선합니다.
-- 구현된 기능의 문제점을 효율적으로 보완하기 위해 고도화합니다.
+- EduLink 서비스에서 Jenkins, Kubernetes, Ansible을 활용하여 코드 변경부터 배포까지의 CI/CD 프로세스를 자동화하고, 블루/그린 배포 방식을 통해 무중단 배포를 실현합니다.
+- Ansible을 이용해 Elasticsearch와 MongoDB의 설치 및 관리를 자동화함으로써 일관된 환경을 유지하고 운영 효율성을 높이는 것을 목표로 합니다.
+- 디스코드 알림과 빠른 롤백 메커니즘을 도입하여 시스템 안정성을 보장하고 사용자 경험을 지속적으로 유지하는 데 중점을 둡니다.
 
 ## 💡팀
 
@@ -46,39 +40,75 @@
   </table>
 </div>
 
+## 🔧 기술 스택
 
 
-## CI/CD 프로젝트 구성
+![Git](https://img.shields.io/badge/git-%23F05033.svg?style=for-the-badge&logo=git&logoColor=white) 
+![GitHub](https://img.shields.io/badge/github-%23121011.svg?style=for-the-badge&logo=github&logoColor=white)
+![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)<br>
+![Kubernetes](https://img.shields.io/badge/kubernetes-%23326ce5.svg?style=for-the-badge&logo=kubernetes&logoColor=white)
+![Jenkins](https://img.shields.io/badge/jenkins-%23d24939.svg?style=for-the-badge&logo=jenkins&logoColor=white)
+![Ansible](https://img.shields.io/badge/ansible-%231a1918.svg?style=for-the-badge&logo=ansible&logoColor=white)
 
-<br>
-<br>
+
+![Vue.js](https://img.shields.io/badge/vue.js-%2335495e.svg?style=for-the-badge&logo=vuedotjs&logoColor=%234FC08D) 
+![](https://img.shields.io/badge/Spring%20Boot-6DB33F?style=for-the-badge&logo=Spring-Boot&logoColor=white) 
+![MariaDB](https://img.shields.io/badge/MariaDB-003545?style=for-the-badge&logo=mariadb&logoColor=white) 
+
+## 🖥️ 시스템 아키텍쳐
+
+<img src="./images/image.png"/>
+
+## 🏗️ CI/CD 프로젝트 구성
+
 
 
 | **항목**                | **설명**                                                                                             |
 |------------------------|-----------------------------------------------------------------------------------------------------|
-| **CI/CD 도구**           | **Jenkins**: 코드 커밋 시 자동화된 빌드, 테스트 및 배포 파이프라인을 구축하여 지속적인 통합을 지원.    |
+| **CI/CD 도구**           | **Jenkins**: 코드 푸시 시 자동화된 빌드, 테스트 및 배포 파이프라인을 구축하여 지속적인 통합을 지원.    |
 | **배포 및 오케스트레이션** | **Kubernetes (K8S)**: 애플리케이션의 자동 배포, 확장, 관리를 위한 오케스트레이션 플랫폼.             |
 | **인프라 자동화**         | **Ansible**: 서버 구성 관리 및 애플리케이션 배포 자동화 도구. 특히, **Elasticsearch**와 **MongoDB**의 설치 및 관리를 자동화. |
 | **배포 방식**            | **블루/그린 배포**: 두 개의 환경(블루/그린)을 사용하여 무중단 배포를 지원 |
 
-## CI/CD 파이프라인 흐름
+## ➡️ CI/CD 파이프라인 흐름
+### ⚙️ 자동 빌드 및 테스트
+- Jenkins는 GitHub에 코드 푸시가 발생하면 자동으로 빌드를 시작합니다.
 
-1. **Jenkins**: 코드 변경 시 자동으로 빌드, 테스트, 배포를 실행합니다.
+- Jenkinsfile을 활용해 프로젝트 빌드와 테스트를 실행하며, 지속적인 통합을 지원합니다.
+
+### 📤 배포 자동화
+- 빌드가 성공하면 Dockerfile을 활용해 Docker 이미지를 생성하고, **Kubernetes (K8S)**를 통해 새로운 버전을 자동 배포합니다.
+
+- 블루/그린 배포 방식을 적용하여 새로운 버전(그린)으로 트래픽을 전환하며 무중단 배포를 실현하고, 기존 버전(블루)을 유지해 안정성을 보장합니다.
+
+### ⏪ 롤백 및 안정성 유지
+- 트래픽 전환 후 문제가 발생하면 즉시 블루 환경으로 롤백할 수 있습니다.
+<!-- - Jenkins와 Kubernetes의 모니터링 기능을 통해 배포 상태를 실시간으로 점검하며, 시스템 안정성을 유지합니다. -->
+
+### 📢 모니터링 및 알림
+- 빌드 또는 배포 중 오류가 발생하면 Discord로 팀에 즉시 알림을 전송합니다.
+
+- 빠른 대응을 통해 장애 시간을 최소화합니다.
+
+### 📜 파이프라인 관리
+- Jenkins Pipeline과 Jenkinsfile을 사용해 빌드, 이미지 생성, 배포, 롤백 과정을 코드로 정의합니다.
+
+- 파이프라인 설정은 Git에 저장되어 변경 이력을 관리하며, 일관성을 유지합니다.
+
+### 🤖 인프라 자동화
+- Ansible을 활용해 Elasticsearch와 MongoDB의 설치 및 관리를 자동화합니다.
+
+- 여러 서버에서 동일한 구성을 적용하여 일관된 환경을 유지합니다.
+
+<!-- 1. **Jenkins**: 코드 변경 시 자동으로 빌드, 테스트, 배포를 실행합니다.
+
 2. 빌드 성공 후 **Kubernetes (K8S)**를 통해 새로운 버전을 자동으로 배포하며, **블루/그린 배포** 방식으로 배포됩니다.
    - 새로운 버전(그린) 환경으로 트래픽을 전환하여 무중단 배포를 보장합니다.
    - 트래픽 전환 후 문제가 발생하면 블루 환경으로 롤백할 수 있습니다.
 3. **Ansible**을 사용하여 **Elasticsearch** 및 **MongoDB**의 설치 및 관리를 자동화하여 일관된 환경을 유지합니다.
-4. 배포 후 **Jenkins**와 **K8S**의 모니터링을 통해 상태를 점검하고, 문제가 발생하면 즉시 롤백하여 시스템 안정성을 유지합니다.
+4. 배포 후 **Jenkins**와 **K8S**의 모니터링을 통해 상태를 점검하고, 문제가 발생하면 즉시 롤백하여 시스템 안정성을 유지합니다. -->
 
-
-<br>
-<br>
-<br>
-
-
-<div>
-
-## <img src="https://velog.velcdn.com/images/sdsd0908/post/4d17812f-6a91-4350-a4d9-de94f16649f9/image.png" width="60" height="60"/>Jenkins 활용 전략
+<!-- ## <img src="https://velog.velcdn.com/images/sdsd0908/post/4d17812f-6a91-4350-a4d9-de94f16649f9/image.png" width="60" height="60"/> Jenkins 활용 전략
 
 
 #### 1) 자동 빌드 및 테스트
@@ -95,85 +125,63 @@
 - **Jenkins Pipeline**을 사용하여 빌드, 이미지 생성, 배포, 롤백을 코드로 관리합니다.
 
 #### 5) Jenkisfile
-- **Jenkinsfile**을 사용하여 CI/CD Pipeline을 코드로 관리하고, 변경 사항을 Git에 저장합니다다
+- **Jenkinsfile**을 사용하여 CI/CD Pipeline을 코드로 관리하고, 변경 사항을 Git에 저장합니다다 -->
+
+## <img src="https://simpleicons.org/icons/jenkins.svg" width="24" height="24" style="vertical-align: middle;"/> JENKINS 사용 이유
+<a href="https://github.com/beyond-sw-camp/be12-4th-404Error-EduLink/wiki/2.-%EC%A0%A0%ED%82%A8%EC%8A%A4-%EC%82%AC%EC%9A%A9-%EC%9D%B4%EC%9C%A0">젠킨스 사용 이유</a>
+
+## 🔵🟢 블루 / 그린 배포 사용 이유
+<a href="https://github.com/beyond-sw-camp/be12-4th-404Error-EduLink/wiki/3.-%EB%B8%94%EB%A3%A8-%EA%B7%B8%EB%A6%B0-%EB%B0%B0%ED%8F%AC-%EC%82%AC%EC%9A%A9-%EC%9D%B4%EC%9C%A0">블루 / 그린 배포 사용 이유</a>
+
+## <img src="https://simpleicons.org/icons/ansible.svg" width="24" height="24" style="vertical-align: middle;"/> 앤서블 사용 이유
+<a href="https://github.com/beyond-sw-camp/be12-4th-404Error-EduLink/wiki/4.-%EC%95%A4%EC%84%9C%EB%B8%94-%EC%82%AC%EC%9A%A9-%EC%9D%B4%EC%9C%A0">앤서블 사용 이유</a>
 
 
-<br> 
+## CI/CD 시나리오
+
+1. github의 frontend/dev, backend/dev에 최신 버전 프로젝트를 머지합니다.
+
+- 최신 버전 코드를 머지하면 이벤트 발생
+
+2. github은 webhook을 통해 젠킨스에게 이벤트를 전달합니다.
+
+3. 젠킨스 마스터가 젠킨스 파일의 지정된 역할(front/backend)에 따라 지정된 젠킨스 에이전트에게 수행할 목록을 전달합니다.
+
+4. 젠킨스 에이전트가 파이프라인에 저장된 절차를 실행합니다.
+
+- github에서 최신 코드 clone
+- 클론된 코드를 기반으로 빌드 작업 수행
+   - front: node, npm bulid
+   - back: gradle build
+- 빌드를 통해 도커 이미지 생성 및 도커 허브에 push
+
+5. 빌드가 완료된 후 메인 브랜치인 경우, 쿠버네티스 마스터에 SSH 접속 하여 쉘스크립트를 실행합니다.
+
+- 현재 실행 중인 pod가 blue라면 green으로 디플로이먼트 생성
+   - 젠킨스에서 도커 허브에 푸쉬한 이미지로 컨테이너 실행
+- rollout명령어를 활용하여 생성한 디플로이먼트내의 프로그램이 정상 작동인지 확인
+- 정상 작동중이라면 서비스를 신버전 디플로이먼트의 파드들과 연결하도록 수정
+- 구버전 디플로이먼트의 스케일을 0으로 수정
+
+6. webhook을 통해 Discode에게 파이프라인 결과를 전달합니다.
+
+- 젠킨스에 설치한 Discode 플러그인을 통해 파이프라인 제목, 결과, 실행 시간이 담긴 Post를 Discode에 전송
+- Discode봇이 데이터를 받아 지정한 Discode 서버에 실행 결과를 전송
 
 
-### JENKINS 단독
-#### 1) CI/CD 프로세스 단순화 & 중앙 집중화
-- **Jenkins**는 CI/CD 프로세스를 단순화하고 중앙 집중화하여 운영 부담을 감소시킵니다.
+## 🔎 CI/CD 배포 및 테스트 결과
 
-#### 2) 온프레미스 및 클라우드 독립적 운영
-- 온프레미스와 클라우드 환경 모두에서 독립적으로 운영할 수 있어 보안성을 확보할 수 있습니다.
+### 프론트엔드 젠킨스 파이프라인
+<img src="./images/readme_img/frontend_bluegreen.gif" />
 
-#### 3) 기존 도구들과 원활한 연동
-- **Docker**, **Kubernetes**, **Ansible**과 원활하게 연동되어, 기존 인프라와의 호환성 문제가 없습니다.
+### 백엔드 젠킨스 파이프라인
+<img src="./images/readme_img/backend_bluegreen.gif" />
 
-#### 4) 플러그인 & 스크립트 확장성
-- 다양한 플러그인과 스크립트를 통해 유연한 배포가 가능하며, 필요에 맞게 확장할 수 있습니다.
-</div>
+### 프론트엔드 무중단 배포 (Blue/Green)
+<img src="./images/readme_img/backend_bluegreen.gif" />
 
+### 백엔드 무중단 배포 (Blue/Green)
+<img src="./images/readme_img/backend_bluegreen.gif" />
 
-<br>
-<br>
-<br>
-
-
-## <span style="color:blue">블루</span> / <span style="color:green">그린</span> 배포하는 이유
-
-###  무중단 배포 (Zero Downtime)
-- **Blue/Green 배포**는 무중단 배포를 지원하여, 사용자 경험을 지속적으로 유지할 수 있습니다.
-
-###  빠른 롤백 지원
-- 배포 과정에서 문제가 발생하면 **빠르게 롤백**할 수 있어 장애 발생 시 즉각적인 복구가 가능합니다.
-
-###  사전 테스트 가능
-- 새로운 버전을 **Green 환경**에서 사전 테스트 후, 안정성이 검증되면 트래픽을 전환합니다.
-
-###  성능 저하 없이 원활한 서비스 운영
-- 성능 저하 없이 **원활한 학습 서비스 운영**이 가능하며, 사용자에게 지장을 주지 않습니다.
-
-
-
-
-<br>
-<br>
-<br>
-
-
-
-
-## 앤서블로 엘라스틱서치 , MONGO DB 설치 및 배포
-
-
-###  **자동화된 설치 및 구성**
-- **Ansible**은 MongoDB와 Elasticsearch의 **설치 및 설정을 자동화**할 수 있습니다. 수동으로 설치하는 번거로움을 줄이고, 반복적인 작업을 최소화할 수 있습니다.
-
-###  **일관된 환경 유지**
-- 여러 서버에 MongoDB와 Elasticsearch를 배포할 때, **Ansible**을 사용하면 동일한 구성을 모든 서버에 일관되게 적용할 수 있습니다. 이를 통해 운영 환경의 불일치를 방지하고, 안정성을 높일 수 있습니다.
-
-###  **배포 및 업데이트 자동화**
-- **Ansible**은 MongoDB와 Elasticsearch의 버전 업데이트 및 패치 작업을 자동화할 수 있어, 시스템 유지보수가 훨씬 쉬워집니다. 배포 및 업데이트를 일관되게 자동으로 적용할 수 있습니다.
-
-
-<br>
-<br>
-
-
-## 5. 시스템 아키텍쳐
-
-
-
-
-
-<img src="./images/image.png"/>
-
-
-
-
-
-
-## 6. CI/CD 배포 및 테스트
-
+### 디스코드 알림
+<img src="./images/readme_img/backend_bluegreen.gif" />

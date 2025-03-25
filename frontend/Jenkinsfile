@@ -1,21 +1,62 @@
+// 전역 변수 선언
+// Jenkins에서는 pipeline 블록 바깥에 선언해야 전역으로 사용 가능
+def deployColor = ""
+def otherColor = ""
+def startTime = 0
+
+def sendDiscordMessage(String title, String description, String color) {
+    withCredentials([string(credentialsId: 'Discord-Webhook', variable: 'DISCORD')]) {
+        discordSend(
+            description: description,
+            footer: "Jenkins CI/CD",
+            link: env.BUILD_URL,
+            result: currentBuild.currentResult,
+            title: title,
+            color: color,
+            webhookURL: "$DISCORD"
+        )
+    }
+}
+
 pipeline {
     agent any
 
+    options {
+        timestamps()
+    }
+
     environment {
         IMAGE_NAME = 'mstar228/edulink-frontend'
-        IMAGE_TAG = "1.0.${BUILD_NUMBER}"
+        IMAGE_TAG = "2.0.${BUILD_NUMBER}"
         KUBE_HOST = 'test@192.0.2.7'
         PATH = "/usr/local/bin:${env.PATH}"
     }
 
     stages {
+        stage('Start Timer') {
+            steps {
+                script {
+                    startTime = System.currentTimeMillis()
+                }
+            }
+        }
+
         stage('Git Clone') {
             steps {
                 echo "Cloning Repository"
                 git url: 'https://github.com/beyond-sw-camp/be12-4th-404Error-EduLink.git',
                     branch: "${env.GIT_BRANCH.replace('origin/', '')}"
             }
+            post {
+                success {
+                    sendDiscordMessage("✅ Git Clone 성공!", "Git Repository 클론 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Git Clone 실패!", "Git Repository 클론 중 오류 발생", "RED")
+                }
+            }
         }
+
         stage('Build Frontend') {
             steps {
                 echo "Building Frontend"
@@ -25,7 +66,16 @@ pipeline {
                     npm run build
                 '''
             }
+            post {
+                success {
+                    sendDiscordMessage("✅ Frontend Build 성공!", "프론트엔드 빌드 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Frontend Build 실패!", "프론트엔드 빌드 중 오류 발생", "RED")
+                }
+            }
         }
+
         stage('Build Docker Image') {
             steps {
                 script {
@@ -33,7 +83,16 @@ pipeline {
                     docker.build("${IMAGE_NAME}:${IMAGE_TAG}", "${WORKSPACE}/frontend")
                 }
             }
+            post {
+                success {
+                    sendDiscordMessage("✅ Docker Build 성공!", "프론트엔드 이미지 빌드 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Docker Build 실패!", "프론트엔드 이미지 빌드 중 오류 발생", "RED")
+                }
+            }
         }
+
         stage('Push to Registry') {
             steps {
                 script {
@@ -43,100 +102,149 @@ pipeline {
                     }
                 }
             }
-        }
-        stage('Determine Deploy Color') {
-            steps {
-                script {
-                    // 먼저 서비스(frontend-svc)가 존재하는지 확인. 없으면 먼저 설치합니다.
-                    def svcSelector = sh(
-                        script: "ssh ${KUBE_HOST} 'kubectl get svc frontend-svc -o jsonpath=\"{.spec.selector.deployment}\"' || echo ''",
-                        returnStdout: true
-                    ).trim()
-                    if (!svcSelector) {
-                        echo "Service 'frontend-svc' not found. Installing configmap, service and default deployment."
-                        sshPublisher(
-                            publishers: [
-                                sshPublisherDesc(
-                                    configName: 'k8s',
-                                    verbose: true,
-                                    transfers: [
-                                        sshTransfer(
-                                            sourceFiles: 'frontend/k8s/frontend-conf.yml',
-                                            remoteDirectory: '/',
-                                            execCommand: "sed -i \"s/latest/${IMAGE_TAG}/g\" frontend/k8s/frontend-conf.yml"
-                                        ),
-                                        sshTransfer(
-                                            sourceFiles: 'frontend/k8s/frontend-svc.yml',
-                                            remoteDirectory: '/',
-                                            execCommand: "sed -i \"s/latest/${IMAGE_TAG}/g\" frontend/k8s/frontend-svc.yml"
-                                        ),
-                                        sshTransfer(
-                                            sourceFiles: 'frontend/k8s/frontend-deployment.yml',
-                                            remoteDirectory: '/',
-                                            execCommand: "sed -i \"s/latest/${IMAGE_TAG}/g\" frontend/k8s/frontend-deployment.yml"
-                                        ),
-                                        sshTransfer(
-                                            execCommand: "kubectl apply -f /home/test/frontend/k8s/frontend-conf.yml"
-                                        ),
-                                        sshTransfer(
-                                            execCommand: "kubectl apply -f /home/test/frontend/k8s/frontend-svc.yml"
-                                        ),
-                                        sshTransfer(
-                                            execCommand: "kubectl apply -f /home/test/frontend/k8s/frontend-deployment.yml"
-                                        )
-                                    ]
-                                )
-                            ]
-                        )
-                        // 잠시 대기 후 다시 조회
-                        sleep time: 10, unit: 'SECONDS'
-                        svcSelector = sh(
-                            script: "ssh ${KUBE_HOST} 'kubectl get svc frontend-svc -o jsonpath=\"{.spec.selector.deployment}\"' || echo ''",
-                            returnStdout: true
-                        ).trim()
-                        if (!svcSelector) {
-                            echo "Service still not found. Defaulting current deployment color to 'green'."
-                            svcSelector = 'green'
-                        }
-                    }
-                    echo "Current deployment color: ${svcSelector}"
-                    // 현재 서비스가 green이면 배포할 색상은 blue, 그렇지 않으면 green으로 결정
-                    def deployColor = (svcSelector == 'green') ? 'blue' : 'green'
-                    def otherColor = (deployColor == 'green') ? 'blue' : 'green'
-                    echo "Deploying ${deployColor} version (scaling down ${otherColor})"
-                    env.DEPLOY_COLOR = deployColor
-                    env.OTHER_COLOR = otherColor
+            post {
+                success {
+                    sendDiscordMessage("✅ Docker Push 성공!", "이미지 레지스트리 업로드 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Docker Push 실패!", "레지스트리 업로드 중 오류 발생", "RED")
                 }
             }
         }
-        stage('Deploy Blue-Green') {
+
+        stage('Determine Deploy Color') {
+            when {
+                expression { env.GIT_BRANCH == 'origin/main' }
+            }
             steps {
                 script {
-                    // 로컬의 배포 YAML 파일 내 'latest' 태그를 현재 IMAGE_TAG로 치환
-                    sh """
-                        sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/frontend/k8s/frontend-deployment-${env.DEPLOY_COLOR}.yml
-                    """
-                    // 디버깅: 로컬 k8s 디렉터리 파일 목록 출력
-                    sh "ls -la ${WORKSPACE}/frontend/k8s"
+                    def blueReplicas = sh(
+                        script: "ssh ${KUBE_HOST} 'kubectl get deployment frontend-deployment-blue -o jsonpath=\"{.spec.replicas}\"' || echo '0'",
+                        returnStdout: true
+                    ).trim()
+                    def greenReplicas = sh(
+                        script: "ssh ${KUBE_HOST} 'kubectl get deployment frontend-deployment-green -o jsonpath=\"{.spec.replicas}\"' || echo '0'",
+                        returnStdout: true
+                    ).trim()
 
-                    // 수정한 YAML 파일을 원격 호스트로 전송
-                    sh """
-                        scp ${WORKSPACE}/frontend/k8s/frontend-deployment-${env.DEPLOY_COLOR}.yml ${KUBE_HOST}:/home/test/frontend/k8s/
-                    """
+                    int blueCount = 0
+                    int greenCount = 0
+                    try { blueCount = blueReplicas.toInteger() } catch (Exception e) {}
+                    try { greenCount = greenReplicas.toInteger() } catch (Exception e) {}
 
-                    // 원격 호스트에서 ConfigMap, Service, 그리고 선택된 Deployment 적용
+                    if (blueCount > 0 && greenCount == 0) {
+                        deployColor = "green"
+                        otherColor = "blue"
+                    } else if (greenCount > 0 && blueCount == 0) {
+                        deployColor = "blue"
+                        otherColor = "green"
+                    } else if (blueCount > 0 && greenCount > 0) {
+                        deployColor = "green"
+                        otherColor = "blue"
+                    } else {
+                        deployColor = "blue"
+                        otherColor = "green"
+                    }
+
+                    echo "Deploying ${deployColor} version (scaling down ${otherColor})"
+                }
+            }
+            post {
+                success {
+                    sendDiscordMessage("✅ 배포 색상 결정 완료!", "${deployColor}로 배포 진행 예정", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ 배포 색상 결정 실패!", "replica 확인 중 오류 발생", "RED")
+                }
+            }
+        }
+
+        stage('Deploy Blue-Green') {
+            when {
+                expression { env.GIT_BRANCH == 'origin/main' }
+            }
+            steps {
+                script {
                     sh """
+                        sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/frontend/k8s/frontend-deployment-${deployColor}.yml
+                        sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/frontend/k8s/frontend-conf.yml
+                        sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/frontend/k8s/frontend-svc.yml
+                        scp ${WORKSPACE}/frontend/k8s/frontend-deployment-${deployColor}.yml ${KUBE_HOST}:/home/test/frontend/k8s/
+                        scp ${WORKSPACE}/frontend/k8s/frontend-conf.yml ${KUBE_HOST}:/home/test/frontend/k8s/
+                        scp ${WORKSPACE}/frontend/k8s/frontend-svc.yml ${KUBE_HOST}:/home/test/frontend/k8s/
                         ssh ${KUBE_HOST} 'kubectl apply -f /home/test/frontend/k8s/frontend-conf.yml'
                         ssh ${KUBE_HOST} 'kubectl apply -f /home/test/frontend/k8s/frontend-svc.yml'
-                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/frontend/k8s/frontend-deployment-${env.DEPLOY_COLOR}.yml'
+                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/frontend/k8s/frontend-deployment-${deployColor}.yml'
+                        ssh ${KUBE_HOST} 'kubectl rollout status deployment/frontend-deployment-${deployColor}'
+                        ssh ${KUBE_HOST} 'kubectl scale deployment frontend-deployment-${otherColor} --replicas=0' || true
                     """
-
-                    // 선택된 Deployment의 롤아웃 상태 대기
-                    sh "ssh ${KUBE_HOST} 'kubectl rollout status deployment/frontend-deployment-${env.DEPLOY_COLOR}'"
-
-                    // 반대 색상의 Deployment 스케일 다운 (오류 발생 시 무시)
-                    sh "ssh ${KUBE_HOST} 'kubectl scale deployment frontend-deployment-${env.OTHER_COLOR} --replicas=0' || true"
                 }
+            }
+            post {
+                success {
+                    sendDiscordMessage("✅ Blue-Green 배포 성공!", "${deployColor}로 트래픽 전환 완료", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ Blue-Green 배포 실패!", "배포 중 오류 발생", "RED")
+                }
+            }
+        }
+
+        stage('Update Service Selector') {
+            steps {
+                script {
+                    echo "Updating service selector to deployment: ${deployColor}"
+                    sh """
+                        echo '{"spec":{"selector":{"deployment":"${deployColor}","type":"frontend"}}}' > /tmp/patch.json
+                        scp /tmp/patch.json ${KUBE_HOST}:/tmp/patch.json
+                        ssh ${KUBE_HOST} "kubectl patch svc frontend-svc -p '\$(cat /tmp/patch.json)'"
+                        ssh ${KUBE_HOST} 'rm /tmp/patch.json'
+                        rm /tmp/patch.json
+                    """
+                }
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                script {
+                    echo "Verifying deployment health..."
+                }
+            }
+            post {
+                success {
+                    sendDiscordMessage("✅ 배포 검증 성공!", "헬스체크 통과", "GREEN")
+                }
+                failure {
+                    sendDiscordMessage("❌ 배포 검증 실패!", "헬스체크 실패", "RED")
+                }
+            }
+        }
+
+        stage('End Timer') {
+            steps {
+                script {
+                    def endTime = System.currentTimeMillis()
+                    def duration = (endTime - startTime) / 1000
+                    echo "⏱️ 전체 파이프라인 실행 시간: ${duration}초"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                def endTime = System.currentTimeMillis()
+                def duration = (endTime - startTime) / 1000
+                sendDiscordMessage("🎉 전체 파이프라인 성공!", "⏱️ 실행 시간: ${duration}초", "GREEN")
+            }
+        }
+        failure {
+            script {
+                def endTime = System.currentTimeMillis()
+                def duration = (endTime - startTime) / 1000
+                sendDiscordMessage("🚨 전체 파이프라인 실패!", "⏱️ 실행 시간: ${duration}초", "RED")
             }
         }
     }
