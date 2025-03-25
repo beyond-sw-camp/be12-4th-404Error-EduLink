@@ -45,64 +45,58 @@ pipeline {
             }
         }
         stage('Determine Deploy Color') {
+            when {
+                expression { env.GIT_BRANCH == 'origin/kms/main' }
+            }
             steps {
                 script {
-                    // 먼저 서비스(frontend-svc)가 존재하는지 확인. 없으면 먼저 설치합니다.
-                    def svcSelector = sh(
-                        script: "ssh ${KUBE_HOST} 'kubectl get svc frontend-svc -o jsonpath=\"{.spec.selector.deployment}\"' || echo ''",
+                    // 각각의 배포의 레플리카 수를 조회
+                    def blueReplicas = sh(
+                        script: "ssh ${KUBE_HOST} 'kubectl get deployment frontend-deployment-blue -o jsonpath=\"{.spec.replicas}\"' || echo '0'",
                         returnStdout: true
                     ).trim()
-                    if (!svcSelector) {
-                        echo "Service 'frontend-svc' not found. Installing configmap, service and default deployment."
-                        sshPublisher(
-                            publishers: [
-                                sshPublisherDesc(
-                                    configName: 'k8s',
-                                    verbose: true,
-                                    transfers: [
-                                        sshTransfer(
-                                            sourceFiles: 'frontend/k8s/frontend-conf.yml',
-                                            remoteDirectory: '/',
-                                            execCommand: "sed -i \"s/latest/${IMAGE_TAG}/g\" frontend/k8s/frontend-conf.yml"
-                                        ),
-                                        sshTransfer(
-                                            sourceFiles: 'frontend/k8s/frontend-svc.yml',
-                                            remoteDirectory: '/',
-                                            execCommand: "sed -i \"s/latest/${IMAGE_TAG}/g\" frontend/k8s/frontend-svc.yml"
-                                        ),
-                                        sshTransfer(
-                                            sourceFiles: 'frontend/k8s/frontend-deployment.yml',
-                                            remoteDirectory: '/',
-                                            execCommand: "sed -i \"s/latest/${IMAGE_TAG}/g\" frontend/k8s/frontend-deployment.yml"
-                                        ),
-                                        sshTransfer(
-                                            execCommand: "kubectl apply -f /home/test/frontend/k8s/frontend-conf.yml"
-                                        ),
-                                        sshTransfer(
-                                            execCommand: "kubectl apply -f /home/test/frontend/k8s/frontend-svc.yml"
-                                        ),
-                                        sshTransfer(
-                                            execCommand: "kubectl apply -f /home/test/frontend/k8s/frontend-deployment.yml"
-                                        )
-                                    ]
-                                )
-                            ]
-                        )
-                        // 잠시 대기 후 다시 조회
-                        sleep time: 10, unit: 'SECONDS'
-                        svcSelector = sh(
-                            script: "ssh ${KUBE_HOST} 'kubectl get svc frontend-svc -o jsonpath=\"{.spec.selector.deployment}\"' || echo ''",
-                            returnStdout: true
-                        ).trim()
-                        if (!svcSelector) {
-                            echo "Service still not found. Defaulting current deployment color to 'green'."
-                            svcSelector = 'green'
-                        }
+                    def greenReplicas = sh(
+                        script: "ssh ${KUBE_HOST} 'kubectl get deployment frontend-deployment-green -o jsonpath=\"{.spec.replicas}\"' || echo '0'",
+                        returnStdout: true
+                    ).trim()
+
+                    int blueCount = 0
+                    int greenCount = 0
+                    try {
+                        blueCount = blueReplicas.toInteger()
+                    } catch (Exception e) {
+                        blueCount = 0
                     }
-                    echo "Current deployment color: ${svcSelector}"
-                    // 현재 서비스가 green이면 배포할 색상은 blue, 그렇지 않으면 green으로 결정
-                    def deployColor = (svcSelector == 'green') ? 'blue' : 'green'
-                    def otherColor = (deployColor == 'green') ? 'blue' : 'green'
+                    try {
+                        greenCount = greenReplicas.toInteger()
+                    } catch (Exception e) {
+                        greenCount = 0
+                    }
+
+                    echo "Blue deployment replicas: ${blueCount}"
+                    echo "Green deployment replicas: ${greenCount}"
+
+                    def deployColor = ''
+                    def otherColor = ''
+
+                    if (blueCount > 0 && greenCount == 0) {
+                        // 현재 blue가 활성화되어 있으면 green 배포
+                        deployColor = "green"
+                        otherColor = "blue"
+                    } else if (greenCount > 0 && blueCount == 0) {
+                        // 현재 green이 활성화되어 있으면 blue 배포
+                        deployColor = "blue"
+                        otherColor = "green"
+                    } else if (blueCount > 0 && greenCount > 0) {
+                        // 두 배포 모두 활성화되어 있다면, 간단하게 blue의 반대인 green을 선택 (필요시 로직 조정)
+                        deployColor = "green"
+                        otherColor = "blue"
+                    } else {
+                        // 활성 배포가 없을 경우 기본값: blue 배포
+                        deployColor = "blue"
+                        otherColor = "green"
+                    }
+
                     echo "Deploying ${deployColor} version (scaling down ${otherColor})"
                     env.DEPLOY_COLOR = deployColor
                     env.OTHER_COLOR = otherColor
@@ -110,32 +104,42 @@ pipeline {
             }
         }
         stage('Deploy Blue-Green') {
+            when {
+                expression { env.GIT_BRANCH == 'origin/kms/main' }
+            }
             steps {
                 script {
-                    // 로컬의 배포 YAML 파일 내 'latest' 태그를 현재 IMAGE_TAG로 치환
+                    // 로컬 deployment YAML 파일 내 'latest' 태그를 현재 이미지 태그로 변경
                     sh """
                         sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/frontend/k8s/frontend-deployment-${env.DEPLOY_COLOR}.yml
                     """
-                    // 디버깅: 로컬 k8s 디렉터리 파일 목록 출력
+                    // 로컬 파일 확인 (디버깅용)
                     sh "ls -la ${WORKSPACE}/frontend/k8s"
 
                     // 수정한 YAML 파일을 원격 호스트로 전송
                     sh """
                         scp ${WORKSPACE}/frontend/k8s/frontend-deployment-${env.DEPLOY_COLOR}.yml ${KUBE_HOST}:/home/test/frontend/k8s/
                     """
-
-                    // 원격 호스트에서 ConfigMap, Service, 그리고 선택된 Deployment 적용
+                    // 원격 호스트에서 config, service, 그리고 선택된 deployment 적용
                     sh """
                         ssh ${KUBE_HOST} 'kubectl apply -f /home/test/frontend/k8s/frontend-conf.yml'
                         ssh ${KUBE_HOST} 'kubectl apply -f /home/test/frontend/k8s/frontend-svc.yml'
                         ssh ${KUBE_HOST} 'kubectl apply -f /home/test/frontend/k8s/frontend-deployment-${env.DEPLOY_COLOR}.yml'
                     """
-
-                    // 선택된 Deployment의 롤아웃 상태 대기
+                    // 배포된 Deployment의 롤아웃 상태 대기
                     sh "ssh ${KUBE_HOST} 'kubectl rollout status deployment/frontend-deployment-${env.DEPLOY_COLOR}'"
-
                     // 반대 색상의 Deployment 스케일 다운 (오류 발생 시 무시)
                     sh "ssh ${KUBE_HOST} 'kubectl scale deployment frontend-deployment-${env.OTHER_COLOR} --replicas=0' || true"
+                }
+            }
+        }
+        // 추가 검증 단계: 배포 후 헬스체크 또는 smoke test
+        stage('Verify Deployment') {
+            steps {
+                script {
+                    echo "Verifying deployment health..."
+                    // 예시: 헬스체크 엔드포인트 호출
+                    // sh "curl -f http://your-frontend-url/health"
                 }
             }
         }
