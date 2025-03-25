@@ -43,7 +43,7 @@ import question from '../pages/board/question.vue';
 
 
 import common from '../pages/commondashboard.vue';
-
+import test from '../pages/test.vue';
 
 
 const router = createRouter({
@@ -52,6 +52,7 @@ const router = createRouter({
         { path: '/a', component: FormsView },
         { path: '/', component: LoginForm, meta: { hideAside: true, hideNav: true } },
         { path: '/Signup', component: SignupForm, meta: { hideAside: true, hideNav: true } },
+        { path: '/test', component: testForm },
         {
             path: '/studentdashboard',
             component: Studentdashboard,
