@@ -1,3 +1,50 @@
+# be12-3rd-404Error-EduLink
+
+
+
+## 📌 프로젝트 주제 
+<div align="center">
+    <img src="./images/readme_img/service.png" /> <br>
+</div>
+
+### EduLink: 혁신적인 학습 관리 플랫폼
+빠르게 증가하는 국비지원 부트캠프 수요에 맞춰 학습 환경의 질적 향상을 목표로 개발된 EduLink는 기존 LMS(HRD-Net)의 한계를 보완합니다.   
+
+이 플랫폼은 단순 출결 확인을 넘어 커리큘럼 관리, 공지사항 통합, 학습 성과 분석 등 다양한 기능을 통해 학습 효율을 극대화합니다.   
+
+수강생들은 EduLink를 통해 학습 전반을 체계적으로 관리하고 편리하게 활용할 수 있습니다.
+
+[상세보기](https://github.com/beyond-sw-camp/be12-3rd-404Error-EduLink/wiki/1.-%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8-%EA%B0%9C%EC%9A%94)
+
+### 프로젝트 목표
+- EduLink 서비스의 백엔드 서버를 구현하고, 이전에 개발한 프론트엔드 서버와 연결합니다.
+- 기본적인 기능 구현에서 나아가 여러 시나리오 기반으로 성능을 테스트하고 개선합니다.
+- 구현된 기능의 문제점을 효율적으로 보완하기 위해 고도화합니다.
+
+## 💡팀
+
+<div align=center>
+  <img src="./images/readme_img/team.png" /> <br>
+    <h3>한화시스템 BEYOND SW캠프 </h3>
+    <p>12기 2차 프로젝트 <strong>팀 404Error</strong></p>
+</div>
+
+
+
+## 🤚 404Error 팀원
+<div style="display: flex; justify-content: center;">
+  <table  align="center">
+    <tbody>
+      <tr>
+        <td align="center"><a href="https://github.com/museongkim0" style="text-decoration: none; color: lightgray;"><img src="./images/팀원소개/ms.jpg" width="100px;" height="100px;" background-size="cover;" alt=""/><br /><sub><b> 🐯 김무성</b></sub></a><br /></td>
+        <td align="center"><a href="https://github.com/kuj7882" style="text-decoration: none; color: lightgray;"><img src="./images/팀원소개/yj.jpg" width="100px;"  alt=""/><br /><sub><b> 🐶 김유진</b></sub></a><br /></td>
+        <td align="center"><a href="https://github.com/GoodLeaf" style="text-decoration: none; color: lightgray;"><img src="./images/팀원소개/jy.png" width="100px;" height="100px;" alt=""/><br /><sub><b> 🐺 김정엽</b></sub></a><br /></td>
+        <td align="center"><a href="https://github.com/gunha0405" style="text-decoration: none; color: lightgray;"><img src="./images/팀원소개/gh.jpg" width="100px;" alt=""/><br /><sub><b> 🐱 오건하</b></sub></a><br /></td>
+        <td align="center"><a href="https://github.com/leewoojin12" style="text-decoration: none; color: lightgray;"><img src="./images/팀원소개/wj.jpg" width="100px;" alt=""/><br /><sub><b> 🦁 이우진</b></sub></a><br /></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
 
 
 
@@ -121,7 +168,7 @@
 
 
 
-<img src="image.png"/>
+<img src="./images/image.png"/>
 
 
 
