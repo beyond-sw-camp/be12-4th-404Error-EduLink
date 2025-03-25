@@ -12,7 +12,8 @@ def sendDiscordMessage(String title, String description, String color) {
             link: env.BUILD_URL,
             result: currentBuild.currentResult,
             title: title,
-            webhookURL: DISCORD
+            color: color,
+            webhookURL: "$DISCORD"
         )
     }
 }
@@ -117,8 +118,14 @@ pipeline {
             }
             steps {
                 script {
-                    def blueReplicas = sh(script: "ssh ${KUBE_HOST} 'kubectl get deployment frontend-deployment-blue -o jsonpath=\"{.spec.replicas}\"' || echo '0'", returnStdout: true).trim()
-                    def greenReplicas = sh(script: "ssh ${KUBE_HOST} 'kubectl get deployment frontend-deployment-green -o jsonpath=\"{.spec.replicas}\"' || echo '0'", returnStdout: true).trim()
+                    def blueReplicas = sh(
+                        script: "ssh ${KUBE_HOST} 'kubectl get deployment frontend-deployment-blue -o jsonpath=\"{.spec.replicas}\"' || echo '0'",
+                        returnStdout: true
+                    ).trim()
+                    def greenReplicas = sh(
+                        script: "ssh ${KUBE_HOST} 'kubectl get deployment frontend-deployment-green -o jsonpath=\"{.spec.replicas}\"' || echo '0'",
+                        returnStdout: true
+                    ).trim()
 
                     int blueCount = 0
                     int greenCount = 0
@@ -158,9 +165,6 @@ pipeline {
             }
             steps {
                 script {
-                    if (!deployColor) {
-                        error "Deployment color not determined!"
-                    }
                     sh """
                         sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/frontend/k8s/frontend-deployment-${deployColor}.yml
                         scp ${WORKSPACE}/frontend/k8s/frontend-deployment-${deployColor}.yml ${KUBE_HOST}:/home/test/frontend/k8s/
@@ -187,7 +191,7 @@ pipeline {
                 script {
                     echo "Updating service selector to deployment: ${deployColor}"
                     sh """
-                        echo '{"spec":{"selector":{"deployment":"${deployColor}","type":"frontend"}}}' > /tmp/patch.json
+                        echo '{"spec":{"selector":{"deployment":"${deployColor}","type":"frontend"}}' > /tmp/patch.json
                         scp /tmp/patch.json ${KUBE_HOST}:/tmp/patch.json
                         ssh ${KUBE_HOST} "kubectl patch svc frontend-svc -p '\$(cat /tmp/patch.json)'"
                         ssh ${KUBE_HOST} 'rm /tmp/patch.json'
