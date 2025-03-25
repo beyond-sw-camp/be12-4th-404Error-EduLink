@@ -5,6 +5,7 @@ metadata:
 spec:
   selector:
     type: backend
+    deployment: blue
   ports:
     - port: 8080
       targetPort: 8080
