@@ -1,3 +1,23 @@
+// 전역 변수 선언
+// Jenkins에서는 pipeline 블록 바깥에 선언해야 전역으로 사용 가능
+def deployColor = ""
+def otherColor = ""
+def startTime = 0
+
+def sendDiscordMessage(String title, String description, String color) {
+    withCredentials([string(credentialsId: 'Discord-Webhook', variable: 'DISCORD')]) {
+        discordSend(
+            description: description,
+            footer: "Jenkins CI/CD",
+            link: env.BUILD_URL,
+            result: currentBuild.currentResult,
+            title: title,
+            color: color,
+            webhookURL: "$DISCORD"
+        )
+    }
+}
+
 pipeline {
     agent any
 
@@ -104,17 +124,15 @@ pipeline {
                     echo "Green ready replicas: ${greenReady}"
 
                     def currentDeployColor = (blueReady && blueReady != '0') ? 'blue' : (greenReady && greenReady != '0') ? 'green' : 'blue'
-                    def deployColor = (currentDeployColor == 'blue') ? 'green' : 'blue'
-                    def otherColor = (deployColor == 'blue') ? 'green' : 'blue'
+                    deployColor = (currentDeployColor == 'blue') ? 'green' : 'blue'
+                    otherColor = (deployColor == 'blue') ? 'green' : 'blue'
 
                     echo "Deploying ${deployColor} version (scaling down ${otherColor} later)"
-                    env.DEPLOY_COLOR = deployColor
-                    env.OTHER_COLOR = otherColor
                 }
             }
             post {
                 success {
-                    sendDiscordMessage("✅ 배포 색상 결정 완료!", "${env.DEPLOY_COLOR} 버전으로 배포 진행", "GREEN")
+                    sendDiscordMessage("✅ 배포 색상 결정 완료!", "${deployColor} 버전으로 배포 진행", "GREEN")
                 }
                 failure {
                     sendDiscordMessage("❌ 배포 색상 결정 실패!", "색상 결정 중 오류 발생", "RED")
@@ -128,24 +146,24 @@ pipeline {
             }
             steps {
                 script {
-                    if (!env.DEPLOY_COLOR) {
+                    if (!deployColor) {
                         error "Deployment color not determined!"
                     }
                     sh """
-                        sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml
-                        scp ${WORKSPACE}/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml ${KUBE_HOST}:/home/test/backend/k8s/
-                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-deployment-${env.DEPLOY_COLOR}.yml'
-                        ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.DEPLOY_COLOR} --replicas=2'
-                        ssh ${KUBE_HOST} 'kubectl rollout status deployment/backend-deployment-${env.DEPLOY_COLOR} --timeout=5m'
-                        sed -i "s/deployment: .*/deployment: ${DEPLOY_COLOR}/g" ${WORKSPACE}/backend/k8s/backend-svc.yml
+                        sed -i "s/latest/${IMAGE_TAG}/g" ${WORKSPACE}/backend/k8s/backend-deployment-${deployColor}.yml
+                        scp ${WORKSPACE}/backend/k8s/backend-deployment-${deployColor}.yml ${KUBE_HOST}:/home/test/backend/k8s/
+                        ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-deployment-${deployColor}.yml'
+                        ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${deployColor} --replicas=2'
+                        ssh ${KUBE_HOST} 'kubectl rollout status deployment/backend-deployment-${deployColor} --timeout=5m'
+                        sed -i "s/deployment: .*/deployment: ${deployColor}/g" ${WORKSPACE}/backend/k8s/backend-svc.yml
                         ssh ${KUBE_HOST} 'kubectl apply -f /home/test/backend/k8s/backend-svc.yml'
-                        ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${env.OTHER_COLOR} --replicas=0'
+                        ssh ${KUBE_HOST} 'kubectl scale deployment backend-deployment-${otherColor} --replicas=0'
                     """
                 }
             }
             post {
                 success {
-                    sendDiscordMessage("✅ Blue-Green 배포 성공!", "${env.DEPLOY_COLOR} 버전 배포 완료", "GREEN")
+                    sendDiscordMessage("✅ Blue-Green 배포 성공!", "${deployColor} 버전 배포 완료", "GREEN")
                 }
                 failure {
                     sendDiscordMessage("❌ Blue-Green 배포 실패!", "배포 중 오류 발생", "RED")
@@ -169,53 +187,15 @@ pipeline {
             script {
                 def endTime = System.currentTimeMillis()
                 def duration = (endTime - startTime) / 1000
-                withCredentials([string(credentialsId: 'Discord-Webhook', variable: 'DISCORD')]) {
-                    discordSend(
-                        description: """
-                        📦 *${currentBuild.displayName}*
-                        ✅ 성공
-                        ⏱️ 실행 시간: *${duration}초*
-                        """,
-                        link: env.BUILD_URL,
-                        result: currentBuild.currentResult,
-                        title: "🎉 ${env.JOB_NAME} 배포 성공",
-                        webhookURL: "$DISCORD"
-                    )
-                }
+                sendDiscordMessage("🎉 전체 파이프라인 성공!", "⏱️ 실행 시간: ${duration}초", "GREEN")
             }
         }
         failure {
             script {
                 def endTime = System.currentTimeMillis()
                 def duration = (endTime - startTime) / 1000
-                withCredentials([string(credentialsId: 'Discord-Webhook', variable: 'DISCORD')]) {
-                    discordSend(
-                        description: """
-                        📦 *${currentBuild.displayName}*
-                        ❌ 실패
-                        ⏱️ 실행 시간: *${duration}초*
-                        """,
-                        link: env.BUILD_URL,
-                        result: currentBuild.currentResult,
-                        title: "🚨 ${env.JOB_NAME} 배포 실패",
-                        webhookURL: "$DISCORD"
-                    )
-                }
+                sendDiscordMessage("🚨 전체 파이프라인 실패!", "⏱️ 실행 시간: ${duration}초", "RED")
             }
         }
-    }
-}
-
-def sendDiscordMessage(String title, String description, String color) {
-    withCredentials([string(credentialsId: 'Discord-Webhook', variable: 'DISCORD')]) {
-        discordSend(
-            description: description,
-            footer: "Jenkins Pipeline",
-            link: env.BUILD_URL,
-            result: currentBuild.currentResult,
-            title: title,
-            color: color,
-            webhookURL: "$DISCORD"
-        )
     }
 }
